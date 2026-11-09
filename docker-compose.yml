@@ -1,0 +1,51 @@
+
+services:
+  middleware:
+    build:
+      context: ./middleware
+      dockerfile: Dockerfile
+    image: health-middleware
+    ports:
+      - "8000:8000"
+    networks:
+      - health-network
+
+  scheduling:
+    build:
+      context: ./services/scheduling
+      dockerfile: Dockerfile
+    image: health-scheduling
+    networks:
+      - health-network
+
+  medical-record:
+    build:
+      context: ./services/medical-record
+      dockerfile: Dockerfile
+    image: health-medical-record
+    networks:
+      - health-network
+
+  notification:
+    build:
+      context: ./services/notification
+      dockerfile: Dockerfile
+    image: health-notification
+    networks:
+      - health-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - health-network
+
+networks:
+  health-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
