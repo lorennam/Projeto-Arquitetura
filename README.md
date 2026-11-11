@@ -21,6 +21,47 @@ da clone
 abre a pasta Projeto_Arquetetura
 dentro dela mesmo manda um
 
+## Autenticação
+
+O login é feito no gateway (`middleware`) e retorna um JWT com o usuário e o papel.
+
+**Usuários de teste:**
+
+| Usuário | Senha | Papel |
+| --- | --- | --- |
+| `paciente` | `paciente123` | `patient` |
+| `medico` | `medico123` | `doctor` |
+| `admin` | `admin123` | `admin` |
+
+**Login (Linux/macOS/Git Bash):**
+
+```bash
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"medico","password":"medico123"}'
+```
+
+**Login (PowerShell):**
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/login `
+  -ContentType "application/json" `
+  -Body '{"username":"medico","password":"medico123"}'
+```
+
+**Resposta:**
+
+```json
+{
+  "access_token": "<jwt>",
+  "token_type": "bearer",
+  "expires_in": 1800
+}
+```
+
+O token contém os campos `sub` (usuário), `role` (papel), `iat` e `exp`.
+Credenciais inválidas retornam `401`. A documentação interativa fica em `http://localhost:8000/docs`.
+
 ```
 docker compose up --build -d
 ```
