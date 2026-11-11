@@ -12,6 +12,12 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_ALGORITHM=${JWT_ALGORITHM}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   scheduling:
     build:
@@ -20,6 +26,12 @@ services:
     image: health-scheduling
     networks:
       - health-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   medical-record:
     build:
@@ -28,6 +40,12 @@ services:
     image: health-medical-record
     networks:
       - health-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   notification:
     build:
@@ -36,6 +54,12 @@ services:
     image: health-notification
     networks:
       - health-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -45,6 +69,12 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - health-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
 networks:
   health-network:
