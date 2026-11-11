@@ -32,6 +32,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   medical-record:
     build:
@@ -46,6 +49,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   notification:
     build:
@@ -60,6 +66,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   rabbitmq:
     image: rabbitmq:3-management
