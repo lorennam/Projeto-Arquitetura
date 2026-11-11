@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+
+from repository import repositorio
+from schemas import ConsultaCreate, ConsultaResponse
 
 app = FastAPI(
     title="Scheduling Service",
@@ -13,3 +16,13 @@ def health_check():
         "status": "healthy",
         "service": "scheduling"
     }
+
+
+@app.post(
+    "/consultas",
+    response_model=ConsultaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cria uma consulta",
+)
+def criar_consulta(dados: ConsultaCreate):
+    return repositorio.criar(dados)
