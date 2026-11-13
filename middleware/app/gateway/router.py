@@ -1,5 +1,5 @@
 import httpx
-from .config import SERVICES
+from .config import CONNECT_TIMEOUT, REQUEST_TIMEOUT, SERVICES
 
 from .correlation import CORRELATION_HEADER, get_correlation_id
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -25,14 +25,21 @@ async def proxy(service: str, path: str, request: Request):
 
     headers[CORRELATION_HEADER] = get_correlation_id()
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.request(
-            request.method,
-            f"{base_url}/{path}",
-            params=request.query_params,
-            content=await request.body(),
-            headers=headers,
-        )
+    timeout = httpx.Timeout(REQUEST_TIMEOUT, connect=CONNECT_TIMEOUT)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.request(
+                request.method,
+                f"{base_url}/{path}",
+                params=request.query_params,
+                content=await request.body(),
+                headers=headers,
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail=f"Tempo esgotado ao chamar '{service}'")
+    except httpx.RequestError:
+        raise HTTPException(status_code=503, detail=f"Serviço '{service}' indisponível")
 
     return Response(
         content=resp.content,
