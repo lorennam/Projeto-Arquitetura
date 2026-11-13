@@ -3,16 +3,24 @@ import asyncio
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response
 
+from .circuit_breaker import CircuitBreaker
 from .config import (
     BACKOFF_BASE_SECONDS,
+    CB_FAILURE_THRESHOLD,
+    CB_RECOVERY_SECONDS,
     CONNECT_TIMEOUT,
     MAX_RETRIES,
     REQUEST_TIMEOUT,
     SERVICES,
 )
-
 from .correlation import CORRELATION_HEADER, get_correlation_id
+
 router = APIRouter(prefix="/api")
+
+breakers = {
+    name: CircuitBreaker(CB_FAILURE_THRESHOLD, CB_RECOVERY_SECONDS)
+    for name in SERVICES
+}
 
 
 @router.api_route(
@@ -23,6 +31,14 @@ async def proxy(service: str, path: str, request: Request):
     base_url = SERVICES.get(service)
     if not base_url:
         raise HTTPException(status_code=404, detail="Serviço não encontrado")
+
+    breaker = breakers[service]
+    if not breaker.allow_request():
+        raise HTTPException(
+            status_code=503,
+            detail=f"Serviço '{service}' temporariamente indisponível. Tente novamente em instantes.",
+            headers={"Retry-After": str(int(CB_RECOVERY_SECONDS))},
+        )
 
     headers = {
         k: v
@@ -53,9 +69,13 @@ async def proxy(service: str, path: str, request: Request):
             if attempt < MAX_RETRIES:
                 await asyncio.sleep(BACKOFF_BASE_SECONDS * (2 ** attempt))
     else:
+        breaker.record_failure()
         if isinstance(last_error, httpx.TimeoutException):
             raise HTTPException(status_code=504, detail=f"Tempo esgotado ao chamar '{service}'")
         raise HTTPException(status_code=503, detail=f"Serviço '{service}' indisponível")
+
+    breaker.record_success()
+
     return Response(
         content=resp.content,
         status_code=resp.status_code,
