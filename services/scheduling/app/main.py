@@ -1,3 +1,4 @@
+from typing import List
 from uuid import UUID
 from fastapi import FastAPI, HTTPException, status
 from repository import repositorio
@@ -25,6 +26,13 @@ def health_check():
 def criar_consulta(dados: ConsultaCreate):
     return repositorio.criar(dados)
 
+@app.get(
+    "/consultas",
+    response_model=List[ConsultaResponse],
+    summary="Lista todas as consultas",
+)
+def listar_consultas():
+    return repositorio.listar()
 
 @app.get(
     "/consultas/{consulta_id}",
