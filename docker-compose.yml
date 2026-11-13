@@ -12,6 +12,10 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - JWT_EXPIRES_MINUTES=${JWT_EXPIRES_MINUTES}
+      - PATIENT_PASSWORD=${PATIENT_PASSWORD}
+      - DOCTOR_PASSWORD=${DOCTOR_PASSWORD}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -72,6 +76,10 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
     ports:
       - "127.0.0.1:15672:15672"
     volumes:
