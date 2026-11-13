@@ -1,6 +1,8 @@
 from typing import List
 from uuid import UUID
+
 from fastapi import FastAPI, HTTPException, status
+
 from enums import StatusConsulta
 from repository import repositorio
 from schemas import ConsultaCreate, ConsultaResponse
@@ -27,6 +29,11 @@ def health_check():
     summary="Cria uma consulta",
 )
 def criar_consulta(dados: ConsultaCreate):
+    if repositorio.existe_conflito(dados.profissional_id, dados.data_hora):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Profissional já possui consulta agendada nesse horário",
+        )
     return repositorio.criar(dados)
 
 

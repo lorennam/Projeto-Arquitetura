@@ -35,5 +35,14 @@ class ConsultaRepository:
         self._consultas[consulta_id] = cancelada
         return cancelada
 
+    def existe_conflito(self, profissional_id: str, data_hora: datetime) -> bool:
+        """Há consulta agendada do mesmo profissional exatamente nesse horário?"""
+        return any(
+            c.status == StatusConsulta.AGENDADA
+            and c.profissional_id == profissional_id
+            and c.data_hora == data_hora
+            for c in self._consultas.values()
+        )
+
 
 repositorio = ConsultaRepository()
