@@ -1,7 +1,9 @@
 import httpx
+from .config import SERVICES
+
+from .correlation import CORRELATION_HEADER, get_correlation_id
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from .config import SERVICES
 
 router = APIRouter(prefix="/api")
 
@@ -20,6 +22,8 @@ async def proxy(service: str, path: str, request: Request):
         for k, v in request.headers.items()
         if k.lower() not in ("host", "content-length")
     }
+
+    headers[CORRELATION_HEADER] = get_correlation_id()
 
     async with httpx.AsyncClient() as client:
         resp = await client.request(
