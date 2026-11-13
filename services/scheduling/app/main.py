@@ -1,6 +1,7 @@
 from typing import List
 from uuid import UUID
 from fastapi import FastAPI, HTTPException, status
+from enums import StatusConsulta
 from repository import repositorio
 from schemas import ConsultaCreate, ConsultaResponse
 
@@ -10,12 +11,14 @@ app = FastAPI(
     version="0.1.0"
 )
 
+
 @app.get("/health")
 def health_check():
     return {
         "status": "healthy",
         "service": "scheduling"
     }
+
 
 @app.post(
     "/consultas",
@@ -26,6 +29,7 @@ def health_check():
 def criar_consulta(dados: ConsultaCreate):
     return repositorio.criar(dados)
 
+
 @app.get(
     "/consultas",
     response_model=List[ConsultaResponse],
@@ -33,6 +37,7 @@ def criar_consulta(dados: ConsultaCreate):
 )
 def listar_consultas():
     return repositorio.listar()
+
 
 @app.get(
     "/consultas/{consulta_id}",
@@ -47,3 +52,23 @@ def obter_consulta(consulta_id: UUID):
             detail="Consulta não encontrada",
         )
     return consulta
+
+
+@app.post(
+    "/consultas/{consulta_id}/cancelamento",
+    response_model=ConsultaResponse,
+    summary="Cancela uma consulta",
+)
+def cancelar_consulta(consulta_id: UUID):
+    consulta = repositorio.obter(consulta_id)
+    if consulta is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Consulta não encontrada",
+        )
+    if consulta.status == StatusConsulta.CANCELADA:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Consulta já está cancelada",
+        )
+    return repositorio.cancelar(consulta_id)

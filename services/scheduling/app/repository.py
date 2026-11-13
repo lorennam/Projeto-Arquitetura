@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
-
 from enums import StatusConsulta
 from schemas import ConsultaCreate, ConsultaResponse
 
@@ -27,6 +26,14 @@ class ConsultaRepository:
 
     def listar(self) -> List[ConsultaResponse]:
         return list(self._consultas.values())
+
+    def cancelar(self, consulta_id: UUID) -> Optional[ConsultaResponse]:
+        consulta = self._consultas.get(consulta_id)
+        if consulta is None:
+            return None
+        cancelada = consulta.model_copy(update={"status": StatusConsulta.CANCELADA})
+        self._consultas[consulta_id] = cancelada
+        return cancelada
 
 
 repositorio = ConsultaRepository()
