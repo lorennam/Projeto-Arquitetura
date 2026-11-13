@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from auth.router import router as auth_router
+from gateway.correlation import CorrelationIdMiddleware
 from gateway.router import router as gateway_router
 
 app = FastAPI(
@@ -8,6 +9,8 @@ app = FastAPI(
     description="Middleware distribuído para integração de serviços de saúde",
     version="0.1.0"
 )
+
+app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(auth_router)
 app.include_router(gateway_router)
