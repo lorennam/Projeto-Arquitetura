@@ -1,14 +1,15 @@
 import hashlib
 import hmac
+import os
 
 def _hash(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
 USERS = {
-    "paciente": {"password_hash": _hash("paciente123"), "role": "patient"},
-    "medico": {"password_hash": _hash("medico123"), "role": "doctor"},
-    "admin": {"password_hash": _hash("admin123"), "role": "admin"},
+    "paciente": {"password_hash": _hash(os.environ["PATIENT_PASSWORD"]), "role": "patient"},
+    "medico": {"password_hash": _hash(os.environ["DOCTOR_PASSWORD"]), "role": "doctor"},
+    "admin": {"password_hash": _hash(os.environ["ADMIN_PASSWORD"]), "role": "admin"},
 }
 
 
