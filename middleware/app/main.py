@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from auth.router import router as auth_router
+from gateway.router import router as gateway_router
 
 app = FastAPI(
     title="Health Middleware",
@@ -9,6 +10,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(gateway_router)
 
 
 @app.get("/health")
