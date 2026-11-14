@@ -14,6 +14,7 @@ from .config import (
     SERVICES,
 )
 from .correlation import CORRELATION_HEADER, get_correlation_id
+from auth.internal_headers import build_internal_headers, strip_internal_headers
 
 router = APIRouter(prefix="/api")
 
@@ -45,6 +46,13 @@ async def proxy(service: str, path: str, request: Request):
         for k, v in request.headers.items()
         if k.lower() not in ("host", "content-length")
     }
+
+    # Anti-spoofing: descarta X-User-* vindo do cliente e injeta a identidade
+    # validada pelo middleware de autenticação.
+    headers = strip_internal_headers(headers)
+    user = getattr(request.state, "user", None)
+    if user:
+        headers.update(build_internal_headers(user))
 
     headers[CORRELATION_HEADER] = get_correlation_id()
 
