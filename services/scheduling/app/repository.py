@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
-
 from enums import StatusConsulta
 from schemas import ConsultaCreate, ConsultaResponse
 
@@ -27,6 +26,23 @@ class ConsultaRepository:
 
     def listar(self) -> List[ConsultaResponse]:
         return list(self._consultas.values())
+
+    def cancelar(self, consulta_id: UUID) -> Optional[ConsultaResponse]:
+        consulta = self._consultas.get(consulta_id)
+        if consulta is None:
+            return None
+        cancelada = consulta.model_copy(update={"status": StatusConsulta.CANCELADA})
+        self._consultas[consulta_id] = cancelada
+        return cancelada
+
+    def existe_conflito(self, profissional_id: str, data_hora: datetime) -> bool:
+        """Há consulta agendada do mesmo profissional exatamente nesse horário?"""
+        return any(
+            c.status == StatusConsulta.AGENDADA
+            and c.profissional_id == profissional_id
+            and c.data_hora == data_hora
+            for c in self._consultas.values()
+        )
 
 
 repositorio = ConsultaRepository()
