@@ -4,12 +4,14 @@ from auth.middleware import JWTAuthMiddleware
 from auth.router import router as auth_router
 from gateway.correlation import CorrelationIdMiddleware
 from gateway.router import router as gateway_router
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(
     title="Health Middleware",
     description="Middleware distribuído para integração de serviços de saúde",
     version="0.1.0"
 )
+Instrumentator().instrument(app).expose(app)
 
 # Ordem importa no Starlette: o último adicionado é o mais externo.
 # Auth primeiro, Correlation depois, para o Correlation envolver o Auth
