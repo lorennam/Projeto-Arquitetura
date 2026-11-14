@@ -13,4 +13,4 @@ PUBLIC_PATHS = {
 def is_public(path: str) -> bool:
     """Compara o caminho exato (sem barra final), sem aceitar prefixos."""
     normalized = path.rstrip("/") or "/"
-    return normalized in PUBLIC_PATHS
+    return normalized in PUBLIC_PATHS   
