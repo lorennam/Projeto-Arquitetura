@@ -62,6 +62,46 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/login `
 O token contém os campos `sub` (usuário), `role` (papel), `iat` e `exp`.
 Credenciais inválidas retornam `401`. A documentação interativa fica em `http://localhost:8000/docs`.
 
+### Validação do token no gateway
+
+Todas as rotas exigem um JWT válido no header `Authorization: Bearer <token>`, exceto as rotas públicas abaixo. A lista é uma allowlist: uma rota nova nasce protegida por padrão.
+
+| Rota pública | Motivo |
+| --- | --- |
+| `/health` | Healthcheck |
+| `/auth/login` | Emissão do token |
+| `/docs`, `/redoc`, `/openapi.json` | Documentação interativa (apenas desenvolvimento/demo) |
+
+Requisições às demais rotas respondem `401` com o header `WWW-Authenticate: Bearer` nos casos:
+
+| Situação | Mensagem |
+| --- | --- |
+| Header `Authorization` ausente ou fora do formato `Bearer <token>` | `Token de autenticação ausente` |
+| Token expirado | `Token expirado` |
+| Assinatura inválida, token malformado ou sem `sub`/`role` | `Token inválido` |
+
+**Exemplo:**
+
+```powershell
+$r = Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/login `
+  -ContentType "application/json" `
+  -Body '{"username":"medico","password":"medico123"}'
+
+Invoke-RestMethod http://localhost:8000/api/scheduling/health `
+  -Headers @{ Authorization = "Bearer $($r.access_token)" }
+```
+
+### Identidade repassada aos serviços
+
+Depois de validar o token, o gateway repassa a identidade aos serviços internos por headers:
+
+| Header | Conteúdo |
+| --- | --- |
+| `X-User-Id` | Usuário (claim `sub`) |
+| `X-User-Role` | Papel (claim `role`: `patient`, `doctor` ou `admin`) |
+
+Qualquer header `X-User-*` enviado pelo cliente é descartado pelo gateway antes de repassar a requisição, para impedir que alguém forje a identidade. Os serviços internos confiam nesses headers porque só o gateway é alcançável de fora (os demais ficam na rede interna do Docker).
+
 ```
 docker compose up --build -d
 ```
