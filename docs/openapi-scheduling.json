@@ -1,0 +1,345 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Scheduling Service",
+    "description": "Serviço de gerenciamento de agendamentos médicos",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/consultas": {
+      "get": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Lista todas as consultas",
+        "operationId": "listar_consultas_consultas_get",
+        "responses": {
+          "200": {
+            "description": "Lista de consultas (vazia se não houver nenhuma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsultaResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Listar Consultas Consultas Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Cria uma consulta",
+        "operationId": "criar_consulta_consultas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsultaCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Consulta criada com status 'agendada'",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profissional já possui consulta agendada nesse horário",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"
+          }
+        }
+      }
+    },
+    "/consultas/{consulta_id}": {
+      "get": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Consulta uma consulta pelo id",
+        "operationId": "obter_consulta_consultas__consulta_id__get",
+        "parameters": [
+          {
+            "name": "consulta_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Consulta Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulta não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"
+          }
+        }
+      }
+    },
+    "/consultas/{consulta_id}/cancelamento": {
+      "post": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Cancela uma consulta",
+        "operationId": "cancelar_consulta_consultas__consulta_id__cancelamento_post",
+        "parameters": [
+          {
+            "name": "consulta_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Consulta Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consulta cancelada (status 'cancelada')",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Consulta já está cancelada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Consulta não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConsultaCreate": {
+        "properties": {
+          "paciente_id": {
+            "type": "string",
+            "title": "Paciente Id",
+            "examples": [
+              "paciente-001"
+            ]
+          },
+          "profissional_id": {
+            "type": "string",
+            "title": "Profissional Id",
+            "examples": [
+              "medico-001"
+            ]
+          },
+          "data_hora": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Data Hora",
+            "description": "Data e hora da consulta (deve estar no futuro). Sem fuso, assume UTC.",
+            "examples": [
+              "2030-05-20T14:30:00Z"
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo",
+            "examples": [
+              "Consulta de rotina"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "paciente_id",
+          "profissional_id",
+          "data_hora"
+        ],
+        "title": "ConsultaCreate"
+      },
+      "ConsultaResponse": {
+        "properties": {
+          "paciente_id": {
+            "type": "string",
+            "title": "Paciente Id",
+            "examples": [
+              "paciente-001"
+            ]
+          },
+          "profissional_id": {
+            "type": "string",
+            "title": "Profissional Id",
+            "examples": [
+              "medico-001"
+            ]
+          },
+          "data_hora": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Data Hora",
+            "description": "Data e hora da consulta (deve estar no futuro). Sem fuso, assume UTC.",
+            "examples": [
+              "2030-05-20T14:30:00Z"
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo",
+            "examples": [
+              "Consulta de rotina"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "examples": [
+              "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusConsulta",
+            "examples": [
+              "agendada"
+            ]
+          },
+          "criado_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Criado Em",
+            "examples": [
+              "2026-11-13T20:58:00Z"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "paciente_id",
+          "profissional_id",
+          "data_hora",
+          "id",
+          "status",
+          "criado_em"
+        ],
+        "title": "ConsultaResponse"
+      },
+      "ErroResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "examples": [
+              "Consulta não encontrada"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErroResponse",
+        "description": "Formato das respostas de erro de negócio (404 e 409)."
+      },
+      "StatusConsulta": {
+        "type": "string",
+        "enum": [
+          "agendada",
+          "cancelada"
+        ],
+        "title": "StatusConsulta"
+      }
+    }
+  }
+}
