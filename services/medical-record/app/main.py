@@ -1,6 +1,7 @@
 from typing import List, Optional
+from uuid import UUID
 
-from fastapi import FastAPI, Query, status
+from fastapi import FastAPI, HTTPException, Query, status
 
 from enums import TipoRegistro
 from repository import repositorio
@@ -41,3 +42,18 @@ def consultar_prontuario(
     tipo: Optional[TipoRegistro] = Query(None, description="Filtra por tipo de registro"),
 ):
     return repositorio.listar(paciente_id, tipo)
+
+
+@app.get(
+    "/pacientes/{paciente_id}/registros/{registro_id}",
+    response_model=RegistroResponse,
+    summary="Consulta um registro específico do prontuário",
+)
+def obter_registro(paciente_id: str, registro_id: UUID):
+    registro = repositorio.obter(paciente_id, registro_id)
+    if registro is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Registro não encontrado",
+        )
+    return registro
