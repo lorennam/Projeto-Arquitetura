@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Query, status
 
+from enums import TipoRegistro
 from repository import repositorio
 from schemas import RegistroCreate, RegistroResponse
 
@@ -35,5 +36,8 @@ def adicionar_registro(paciente_id: str, dados: RegistroCreate):
     response_model=List[RegistroResponse],
     summary="Consulta o prontuário do paciente",
 )
-def consultar_prontuario(paciente_id: str):
-    return repositorio.listar(paciente_id)
+def consultar_prontuario(
+    paciente_id: str,
+    tipo: Optional[TipoRegistro] = Query(None, description="Filtra por tipo de registro"),
+):
+    return repositorio.listar(paciente_id, tipo)

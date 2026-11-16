@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
+
+from enums import TipoRegistro
 from schemas import RegistroCreate, RegistroResponse
 
 
@@ -23,8 +25,11 @@ class ProntuarioRepository:
         self._prontuarios.setdefault(paciente_id, []).append(registro)
         return registro
 
-    def listar(self, paciente_id: str) -> List[RegistroResponse]:
-        return list(self._prontuarios.get(paciente_id, []))
+    def listar(
+        self, paciente_id: str, tipo: Optional[TipoRegistro] = None
+    ) -> List[RegistroResponse]:
+        registros = self._prontuarios.get(paciente_id, [])
+        return [r for r in registros if tipo is None or r.tipo == tipo]
 
     def obter(self, paciente_id: str, registro_id: UUID) -> Optional[RegistroResponse]:
         return next(
