@@ -137,9 +137,7 @@ Todos os serviços escrevem logs JSON (um por requisição, com `correlation_id`
 | Serviço | Métricas |
 | --- | --- |
 | middleware | `http://localhost:8000/metrics` |
-| scheduling | `http://localhost:8001/metrics` |
-| medical-record | `http://localhost:8002/metrics` |
-| notification | `http://localhost:8003/metrics` |
+| scheduling, medical-record, notification | Só na rede interna do Docker (`<serviço>:<porta>/metrics`) |
 
 O `X-Correlation-ID` é gerado no gateway, repassado aos serviços e devolvido na resposta. O nível de log vem da variável `LOG_LEVEL` (padrão `INFO`).
 
