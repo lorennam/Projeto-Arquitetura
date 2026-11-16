@@ -7,12 +7,15 @@ from enums import StatusConsulta
 from erros import ErroResponse
 from repository import repositorio
 from schemas import ConsultaCreate, ConsultaResponse
+from observability import configurar_observabilidade
 
 app = FastAPI(
     title="Scheduling Service",
     description="Serviço de gerenciamento de agendamentos médicos",
     version="0.1.0"
 )
+
+configurar_observabilidade(app, "scheduling")
 
 RESP_422 = {422: {"description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"}}
 RESP_404 = {404: {"model": ErroResponse, "description": "Consulta não encontrada"}}

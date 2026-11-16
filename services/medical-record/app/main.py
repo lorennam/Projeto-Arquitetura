@@ -7,12 +7,15 @@ from enums import TipoRegistro
 from erros import ErroResponse
 from repository import repositorio
 from schemas import RegistroCreate, RegistroResponse
+from observability import configurar_observabilidade
 
 app = FastAPI(
     title="Medical Record Service",
     description="Serviço de gerenciamento de prontuários médicos",
     version="0.1.0"
 )
+
+configurar_observabilidade(app, "medical-record")
 
 # Todas as rotas de negócio ficam sob /v1. O /health fica fora do prefixo
 # porque é rota de infraestrutura (healthcheck), não parte do contrato versionado.

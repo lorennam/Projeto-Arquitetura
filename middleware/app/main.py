@@ -5,6 +5,7 @@ from auth.router import router as auth_router
 from gateway.correlation import CorrelationIdMiddleware
 from gateway.router import router as gateway_router
 from auth.rbac import RBACMiddleware
+from observability import configurar_observabilidade
 
 app = FastAPI(
     title="Health Middleware",
@@ -18,6 +19,7 @@ app = FastAPI(
 # - JWT preenche request.state.user, que o RBAC consome.
 app.add_middleware(RBACMiddleware)
 app.add_middleware(JWTAuthMiddleware)
+configurar_observabilidade(app, "middleware")
 app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(auth_router)

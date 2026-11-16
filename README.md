@@ -69,6 +69,7 @@ Todas as rotas exigem um JWT válido no header `Authorization: Bearer <token>`, 
 | Rota pública | Motivo |
 | --- | --- |
 | `/health` | Healthcheck |
+| `/metrics` | Scrape do Prometheus |
 | `/auth/login` | Emissão do token |
 | `/docs`, `/redoc`, `/openapi.json` | Documentação interativa (apenas desenvolvimento/demo) |
 
@@ -128,6 +129,19 @@ Métodos considerados: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
 | Autenticado, mas papel sem permissão | `403` |
 
 A tabela fica em `middleware/app/auth/permissions.py`; para mudar uma permissão basta editar esse dicionário.
+
+## Observabilidade
+
+Todos os serviços escrevem logs JSON (um por requisição, com `correlation_id`) e expõem métricas Prometheus em `GET /metrics`:
+
+| Serviço | Métricas |
+| --- | --- |
+| middleware | `http://localhost:8000/metrics` |
+| scheduling, medical-record, notification | Só na rede interna do Docker (`<serviço>:<porta>/metrics`) |
+
+O `X-Correlation-ID` é gerado no gateway, repassado aos serviços e devolvido na resposta. O nível de log vem da variável `LOG_LEVEL` (padrão `INFO`).
+
+Detalhes em [`docs/observabilidade.md`](docs/observabilidade.md).
 
 ```
 docker compose up --build -d

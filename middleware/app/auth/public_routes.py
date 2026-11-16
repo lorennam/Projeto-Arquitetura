@@ -2,6 +2,7 @@
 # Lista explícita (allowlist): uma rota nova nasce protegida por padrão.
 PUBLIC_PATHS = {
     "/health",
+    "/metrics",
     "/auth/login",
     # Documentação interativa do FastAPI (útil em desenvolvimento/demo).
     "/docs",
