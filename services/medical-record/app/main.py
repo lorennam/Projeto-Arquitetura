@@ -1,4 +1,7 @@
+from typing import List
+
 from fastapi import FastAPI, status
+
 from repository import repositorio
 from schemas import RegistroCreate, RegistroResponse
 
@@ -25,3 +28,12 @@ def health_check():
 )
 def adicionar_registro(paciente_id: str, dados: RegistroCreate):
     return repositorio.adicionar(paciente_id, dados)
+
+
+@app.get(
+    "/pacientes/{paciente_id}/registros",
+    response_model=List[RegistroResponse],
+    summary="Consulta o prontuário do paciente",
+)
+def consultar_prontuario(paciente_id: str):
+    return repositorio.listar(paciente_id)
