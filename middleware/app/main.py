@@ -4,6 +4,7 @@ from auth.middleware import JWTAuthMiddleware
 from auth.router import router as auth_router
 from gateway.correlation import CorrelationIdMiddleware
 from gateway.router import router as gateway_router
+from auth.rbac import RBACMiddleware
 
 app = FastAPI(
     title="Health Middleware",
@@ -12,8 +13,10 @@ app = FastAPI(
 )
 
 # Ordem importa no Starlette: o último adicionado é o mais externo.
-# Auth primeiro, Correlation depois, para o Correlation envolver o Auth
-# e o 401 também sair com o X-Correlation-ID.
+# Execução: Correlation -> JWT -> RBAC -> rota.
+# - Correlation envolve tudo, então 401 e 403 também saem com X-Correlation-ID.
+# - JWT preenche request.state.user, que o RBAC consome.
+app.add_middleware(RBACMiddleware)
 app.add_middleware(JWTAuthMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 
