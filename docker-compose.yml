@@ -74,6 +74,23 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  notification-consumer:
+    build:
+      context: ./services/notification
+      dockerfile: Dockerfile
+    image: health-notification
+    command: ["python","consumer.py"]
+    networks:
+      - health-network
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_PORT=${RABBITMQ_PORT}
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
   rabbitmq:
     image: rabbitmq:3-management
     environment:
