@@ -18,3 +18,22 @@ PERMISSIONS = {
         "admin": ALL_METHODS,
     },
 }
+
+def service_from_path(path: str):
+    """Extrai o nome do serviço de um caminho '/api/<servico>/...'.
+
+    Retorna None se o caminho não for de uma rota de serviço.
+    """
+    parts = path.strip("/").split("/")
+    if len(parts) >= 2 and parts[0] == "api":
+        return parts[1]
+    return None
+
+
+def is_allowed(role: str, service: str, method: str) -> bool:
+    """True se o papel pode usar o método HTTP naquele serviço.
+
+    Allowlist: serviço ou papel ausente da tabela => negado.
+    """
+    allowed_methods = PERMISSIONS.get(service, {}).get(role, set())
+    return method.upper() in allowed_methods
