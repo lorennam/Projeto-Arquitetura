@@ -60,7 +60,29 @@ Cada requisição que esgota os retries conta como **uma** falha para o breaker.
 
 ## 3. Consistência escolhida e justificativa
 
-_(a completar)_
+**Modelo: consistência eventual entre serviços, forte dentro de cada serviço.**
+
+| Escopo | Modelo | Motivo |
+| --- | --- | --- |
+| Dentro de um serviço (ex.: conflito de horário no `scheduling`) | Forte | Cada serviço tem uma única instância e seu próprio repositório; a checagem e a gravação acontecem na mesma requisição. |
+| `scheduling` → `notification` (evento `consulta.agendada`) | Eventual | A notificação é publicada via RabbitMQ e processada depois; entre a gravação da consulta e a notificação há um intervalo em que os estados diferem. |
+| `scheduling` → `medical-record` (gRPC) | Consulta síncrona, informativa | Lê o estado atual do prontuário; não altera dados nem bloqueia o agendamento. |
+
+### Justificativa
+
+- **A notificação não precisa ser imediata.** Atrasar o aviso ao paciente em segundos
+  é aceitável; travar o agendamento por causa dele não é.
+- **Desacoplamento:** o `scheduling` não depende do `notification` estar no ar.
+- **Disponibilidade acima de consistência imediata** (teorema CAP): preferimos aceitar
+  respostas ligeiramente defasadas a recusar agendamentos.
+
+### Como a eventual consistência é mantida
+
+- **Entrega at-least-once:** mensagens persistentes (`delivery_mode=2`), filas duráveis,
+  `ack` manual no consumidor e confirmação de publicação (`confirm_delivery`).
+- **Idempotência:** o consumidor registra o `message_id` em SQLite e ignora duplicatas.
+- **Retry e DLQ:** falhas de processamento voltam por uma fila de retry (TTL de 5 s)
+  até 3 vezes e então seguem para a DLQ `notification.consultas.dlq`, sem perda.
 
 ## 4. Comportamento na queda de cada componente
 
