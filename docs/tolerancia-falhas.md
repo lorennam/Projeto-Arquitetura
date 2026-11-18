@@ -153,8 +153,25 @@ Mitigação futura: múltiplas réplicas atrás de um balanceador.
 
 ## 5. Como foi testado
 
-_(a completar)_
+Todos os testes foram feitos com `docker compose` e chamadas autenticadas pelo gateway.
+
+| # | Cenário | Resultado observado |
+| --- | --- | --- |
+| A | `scheduling` parado, 5 chamadas seguidas a `GET /api/scheduling/consultas` | As 3 primeiras responderam `504` após ~11,6 s (4 tentativas × 2 s de conexão + 3,5 s de backoff). A 4ª e a 5ª responderam `503` **imediatamente**: o circuit breaker abriu |
+| B | `rabbitmq` parado, criação de consulta | A consulta foi **gravada**, mas o cliente recebeu `409` (a repetição do gateway encontrou o conflito). Ao religar o broker, o produtor publicou o evento e o consumidor reconectou sozinho e processou a notificação |
+| C | `medical-record` parado, criação de consulta | A consulta foi criada normalmente (`agendada`). O log do `scheduling` registrou `chamada gRPC ao medical-record falhou`, após o timeout de 2 s |
+| D | Token expirado | O gateway respondeu `401 "Token expirado"` sem chamar nenhum serviço |
+
+Evidências: saídas de terminal e logs JSON com o mesmo `correlation_id` entre
+`scheduling` e `medical-record`.
 
 ## 6. Limitações conhecidas
 
-_(a completar)_
+- **Sem política de `restart`:** um container que cai fica parado até ser religado.
+- **Dados em memória:** `scheduling` e `medical-record` perdem os dados ao reiniciar.
+- **Produtor RabbitMQ em loop dentro da requisição:** com o broker fora, `POST /consultas` não responde; o cliente pode receber `409` ou `504` mesmo com a consulta criada.
+- **Retry em `POST` sem idempotência:** uma repetição do gateway pode duplicar operações ou gerar conflito aparente.
+- **Timeout é por tentativa:** o pior caso de uma chamada ao gateway é ~11,6 s.
+- **Perda possível de notificação:** o `message_id` é registrado antes do "envio"; se o consumidor cair entre os dois passos, a mensagem reentregue é tratada como duplicata.
+- **Gateway sem réplica:** ponto único de falha para clientes externos.
+- **gRPC sem TLS
