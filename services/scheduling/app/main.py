@@ -69,7 +69,11 @@ def criar_consulta(
     id_correlacao = correlation_id or str(uuid4())
 
     #Publica os dados da consulta no RabbitMQ com o ID de correlaão
-    publicar_consulta_agendada(consulta,id_correlacao)
+    publicar_consulta_agendada(
+        consulta,
+        id_correlacao,
+        str(consulta.id)
+    )
 
     
     return consulta
