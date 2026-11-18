@@ -87,6 +87,42 @@ Cada requisição que esgota os retries conta como **uma** falha para o breaker.
 
 ## 4. Comportamento na queda de cada componente
 
+Nenhum serviço tem política de `restart` no `docker-compose.yml`: um container
+que cai **permanece parado** até alguém subi-lo de novo. Os repositórios são em
+memória, então os dados de `scheduling` e `medical-record` se perdem na queda.
+
+### 4.1 scheduling
+
+| Aspecto | Comportamento |
+| --- | --- |
+| Chamadas pelo gateway | `504` após ~11,6 s nas 3 primeiras (timeouts + retries); depois o breaker abre e o gateway responde `503` imediato com `Retry-After: 10` |
+| Recuperação | Passados 10 s o breaker entra em `half-open`; a primeira chamada bem-sucedida o fecha |
+| Outros serviços | Não são afetados (breaker por serviço) |
+| Eventos | Nenhum novo evento `consulta.agendada` é publicado; os já enfileirados continuam sendo processados |
+
+### 4.2 medical-record
+
+| Aspecto | Comportamento |
+| --- | --- |
+| Chamadas pelo gateway | Mesmo comportamento do `scheduling` (504, depois 503 com breaker aberto) |
+| Chamada gRPC do `scheduling` | Timeout de 2 s; o erro é registrado em log e o agendamento **continua** (a consulta ao prontuário é informativa) |
+
+### 4.3 notification
+
+| Componente | Comportamento |
+| --- | --- |
+| API HTTP | Mesmo comportamento dos demais (504, depois 503) |
+| Consumidor | Com o consumidor parado, as mensagens se acumulam na fila durável `notification.consultas` e são processadas quando ele volta. O registro de idempotência fica em volume (`notification_data`) e sobrevive à queda |
+
+A API e o consumidor são containers separados: a queda de um não afeta o outro.
+
+### 4.4 middleware (gateway)
+
+É o único ponto de entrada e **não é replicado**: se cair, os clientes externos
+perdem o acesso a todos os serviços. Internamente, os serviços e o fluxo
+assíncrono (RabbitMQ) continuam funcionando, pois não dependem do gateway.
+Mitigação futura: múltiplas réplicas atrás de um balanceador.
+
 _(a completar)_
 
 ## 5. Como foi testado
