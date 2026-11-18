@@ -12,6 +12,7 @@ from erros import ErroResponse
 from repository import repositorio
 from schemas import RegistroCreate, RegistroResponse
 from observability import configurar_observabilidade
+from tracing import configurar_tracing
 from contextlib import asynccontextmanager
 from grpc_server import iniciar_grpc
 
@@ -35,6 +36,7 @@ app = FastAPI(
 Instrumentator().instrument(app).expose(app)
 
 configurar_observabilidade(app, "medical-record")
+configurar_tracing(app, "medical-record")
 
 # Todas as rotas de negócio ficam sob /v1. O /health fica fora do prefixo
 # porque é rota de infraestrutura (healthcheck), não parte do contrato versionado.

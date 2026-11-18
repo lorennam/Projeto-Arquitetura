@@ -70,6 +70,8 @@ services:
     image: health-medical-record
     networks:
       - health-network
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     healthcheck:
       test:
         [
@@ -85,6 +87,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      jaeger:
+        condition: service_started
 
   notification:
     build:
