@@ -2,5 +2,5 @@ fastapi
 uvicorn[standard]
 prometheus-client>=0.20,<1
 pika
-
-
+grpcio>=1.60,<2
+grpcio-tools>=1.60,<2
