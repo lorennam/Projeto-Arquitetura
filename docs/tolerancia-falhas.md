@@ -25,8 +25,8 @@ retry com backoff exponencial e circuit breaker, implementados em
 
 | Mecanismo | Valor padrão | Variável de ambiente |
 | --- | --- | --- |
-| Timeout total da chamada | 5 s | `GATEWAY_TIMEOUT_SECONDS` |
-| Timeout de conexão | 2 s | `GATEWAY_CONNECT_TIMEOUT_SECONDS` |
+| Timeout por tentativa | 5 s | `GATEWAY_TIMEOUT_SECONDS` |
+| Timeout de conexão (por tentativa) | 2 s | `GATEWAY_CONNECT_TIMEOUT_SECONDS` |
 | Retries | 3 (4 tentativas no total) | `GATEWAY_MAX_RETRIES` |
 | Base do backoff | 0,5 s (0,5 s, 1 s, 2 s) | `GATEWAY_BACKOFF_BASE_SECONDS` |
 | Falhas para abrir o breaker | 3 | `GATEWAY_CB_FAILURE_THRESHOLD` |
@@ -55,8 +55,9 @@ Cada requisição que esgota os retries conta como **uma** falha para o breaker.
 | Situação | Resposta |
 | --- | --- |
 | Serviço inexistente | `404` |
-| Breaker aberto ou serviço indisponível após retries | `503` |
-| Timeout após retries | `504` |
+| Serviço sem resposta (container parado): timeouts em todas as tentativas | `504`, após ~11,6 s (4 × 2 s de conexão + 3,5 s de backoff) |
+| Serviço recusando conexão ou DNS falhando, após retries | `503` |
+| Breaker aberto | `503` imediato, com `Retry-After: 10` |
 
 ## 3. Consistência escolhida e justificativa
 
