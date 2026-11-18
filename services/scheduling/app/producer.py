@@ -10,7 +10,7 @@ ROUTING_KEY = "consulta.agendada"
 RETRY_DELAY = int(os.getenv("RABBITMQ_RETRY_DELAY", "5"))
 
 
-def publicar_consulta_agendada(consulta, correlation_id: str):
+def publicar_consulta_agendada(consulta, correlation_id: str, message_id: str):
     """
     Publica um evento de consulta agendada no RabbitMQ.
     Tenta novamente caso o broker esteja indisponível ou a conexão caia.
@@ -81,7 +81,8 @@ def publicar_consulta_agendada(consulta, correlation_id: str):
                 properties=pika.BasicProperties(
                     content_type="application/json",
                     delivery_mode=2,
-                    correlation_id=correlation_id
+                    correlation_id=correlation_id,
+                    message_id=message_id
                 ),
                 mandatory=True
             )
