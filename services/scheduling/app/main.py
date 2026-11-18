@@ -11,6 +11,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from grpc_client import paciente_tem_prontuario
 
 from observability import configurar_observabilidade
+from tracing import configurar_tracing
 
 app = FastAPI(
     title="Scheduling Service",
@@ -20,6 +21,7 @@ app = FastAPI(
 Instrumentator().instrument(app).expose(app)
 
 configurar_observabilidade(app, "scheduling")
+configurar_tracing(app, "scheduling")
 
 RESP_422 = {422: {"description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"}}
 RESP_404 = {404: {"model": ErroResponse, "description": "Consulta não encontrada"}}

@@ -9,6 +9,7 @@ from gateway.correlation import CorrelationIdMiddleware
 from gateway.router import router as gateway_router
 from auth.rbac import RBACMiddleware
 from observability import configurar_observabilidade
+from tracing import configurar_tracing
 
 app = FastAPI(
     title="Health Middleware",
@@ -28,6 +29,10 @@ app.add_middleware(CorrelationIdMiddleware)
 # O Instrumentator é adicionado por último para ficar
 # mais externo e também observar respostas 401 e 403.
 Instrumentator().instrument(app).expose(app)
+
+# Tracing por último: fica como o middleware mais externo e envolve
+# Correlation -> JWT -> RBAC, então 401/403 também aparecem no trace.
+configurar_tracing(app, "middleware", instrumentar_httpx=True)
 
 app.include_router(auth_router)
 app.include_router(gateway_router)
