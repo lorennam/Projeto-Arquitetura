@@ -123,7 +123,33 @@ perdem o acesso a todos os serviços. Internamente, os serviços e o fluxo
 assíncrono (RabbitMQ) continuam funcionando, pois não dependem do gateway.
 Mitigação futura: múltiplas réplicas atrás de um balanceador.
 
-_(a completar)_
+### 4.5 RabbitMQ
+
+| Componente | Comportamento |
+| --- | --- |
+| Consumidor (`notification`) | Detecta a perda da conexão e tenta reconectar a cada 5 s, indefinidamente |
+| Produtor (`scheduling`) | Tenta reconectar a cada 5 s, **indefinidamente, dentro da requisição HTTP** |
+| Dados | Filas duráveis, mensagens persistentes e volume `rabbitmq_data`: o que já estava na fila sobrevive a uma reinicialização do broker |
+
+**Criação de consulta com o broker fora (testado):**
+
+1. O `scheduling` grava a consulta em memória e tenta publicar o evento.
+2. A publicação fica em loop; a requisição não responde.
+3. O gateway estoura o timeout (5 s) e repete a chamada. A repetição encontra a
+   consulta já gravada (conflito de horário) e o cliente recebe `409`, embora
+   a consulta **tenha sido criada**.
+4. A tentativa original continua em segundo plano e publica o evento quando o
+   broker volta, o que mantém a consistência eventual com o `notification`.
+
+**Limitações deste comportamento:**
+
+- A resposta ao cliente é enganosa (`409` em vez de um erro de indisponibilidade).
+- Cada criação de consulta durante a queda mantém uma thread presa, o que pode
+  esgotar o pool do serviço em quedas longas.
+- O retry do gateway é aplicado também a `POST`, sem chave de idempotência.
+- Evolução recomendada: limitar as tentativas do produtor e responder `503`,
+  ou adotar o padrão *transactional outbox* (gravar o evento junto com a
+  consulta e publicá-lo em segundo plano).
 
 ## 5. Como foi testado
 
