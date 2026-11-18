@@ -4,6 +4,7 @@ import os
 from typing import Optional
 
 import grpc
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorClient
 
 import correlation
 import prontuario_pb2
@@ -14,7 +15,10 @@ logger = logging.getLogger("grpc")
 MEDICAL_RECORD_GRPC_ADDR = os.getenv("MEDICAL_RECORD_GRPC_ADDR", "medical-record:50051")
 GRPC_TIMEOUT_SECONDS = float(os.getenv("GRPC_TIMEOUT_SECONDS", "2"))
 
-# O canal é criado uma vez e reaproveitado (conexão HTTP/2 persistente).
+# Instrumenta o cliente gRPC antes de criar o canal: cria o span de cliente
+# e injeta o traceparent na metadata.
+GrpcInstrumentorClient().instrument()
+
 _channel = grpc.insecure_channel(MEDICAL_RECORD_GRPC_ADDR)
 _stub = prontuario_pb2_grpc.ProntuarioServiceStub(_channel)
 
