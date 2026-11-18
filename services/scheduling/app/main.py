@@ -1,14 +1,15 @@
 from typing import List
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import FastAPI, HTTPException, status
-
+from fastapi import FastAPI, Header, HTTPException, status
+from producer import publicar_consulta_agendada
 from enums import StatusConsulta
 from erros import ErroResponse
 from repository import repositorio
 from schemas import ConsultaCreate, ConsultaResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from observability import configurar_observabilidade
 
 app = FastAPI(
     title="Scheduling Service",
@@ -16,6 +17,9 @@ app = FastAPI(
     version="0.1.0"
 )
 Instrumentator().instrument(app).expose(app)
+
+configurar_observabilidade(app, "scheduling")
+
 RESP_422 = {422: {"description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"}}
 RESP_404 = {404: {"model": ErroResponse, "description": "Consulta não encontrada"}}
 
@@ -43,14 +47,39 @@ def health_check():
         **RESP_422,
     },
 )
-def criar_consulta(dados: ConsultaCreate):
+
+def criar_consulta(
+    dados: ConsultaCreate,
+    correlation_id: str = Header(default=None, alias="X-Correlation-ID")
+):
+    """Cria uma consulta e publcia o evento correspondente no RabbitMQ.
+
+    Recebe os dados da consulta e o identificador de correlação enviado pelo middleware.
+    Após verificar conflitos e salvar a consulta no repositório, publica o evento consulta.agendada.
+
+    Caso não receba um correlation_id, gera um novo identificador UUID.
+    """
+    
     if repositorio.existe_conflito(dados.profissional_id, dados.data_hora):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Profissional já possui consulta agendada nesse horário",
+            detail="Profissional já possui consulta agendada nesse horário.",
         )
-    return repositorio.criar(dados)
+    #Persiste a consulta antes de publicar o evento.
+    consulta = repositorio.criar(dados)
 
+    #Reutiliza o ID recebido do middleware ou gera um novo UUID
+    id_correlacao = correlation_id or str(uuid4())
+
+    #Publica os dados da consulta no RabbitMQ com o ID de correlaão
+    publicar_consulta_agendada(
+        consulta,
+        id_correlacao,
+        str(consulta.id)
+    )
+
+    
+    return consulta
 
 @app.get(
     "/consultas",

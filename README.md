@@ -69,6 +69,7 @@ Todas as rotas exigem um JWT válido no header `Authorization: Bearer <token>`, 
 | Rota pública | Motivo |
 | --- | --- |
 | `/health` | Healthcheck |
+| `/metrics` | Scrape do Prometheus |
 | `/auth/login` | Emissão do token |
 | `/docs`, `/redoc`, `/openapi.json` | Documentação interativa (apenas desenvolvimento/demo) |
 
@@ -101,6 +102,46 @@ Depois de validar o token, o gateway repassa a identidade aos serviços internos
 | `X-User-Role` | Papel (claim `role`: `patient`, `doctor` ou `admin`) |
 
 Qualquer header `X-User-*` enviado pelo cliente é descartado pelo gateway antes de repassar a requisição, para impedir que alguém forje a identidade. Os serviços internos confiam nesses headers porque só o gateway é alcançável de fora (os demais ficam na rede interna do Docker).
+
+### Autorização por papéis (RBAC)
+
+Depois de validar o token, o gateway confere se o papel do usuário (`role` do JWT) pode usar o método HTTP no serviço pedido. A tabela é uma allowlist: o que não está listado é **negado** (privilégio mínimo).
+
+| Serviço (`/api/<serviço>/...`) | `patient` | `doctor` | `admin` |
+| --- | --- | --- | --- |
+| `scheduling` | GET, POST | todos os métodos | todos os métodos |
+| `medical-record` | negado | todos os métodos | negado |
+| `notification` | GET | GET | todos os métodos |
+
+Métodos considerados: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`.
+
+**Decisões:**
+
+- O `medical-record` é acessível **apenas por médico**. Por ser dado clínico sensível, nem o admin acessa (privilégio mínimo).
+- Rotas fora de `/api/` (`/health`, `/auth/login`, docs) não passam pela tabela: são públicas ou protegidas apenas pelo JWT.
+- A regra "paciente lê apenas o próprio prontuário" não foi implementada no gateway, pois exigiria que o serviço filtrasse os registros por `X-User-Id`. Fica como evolução.
+
+**Respostas:**
+
+| Situação | Código |
+| --- | --- |
+| Sem token, expirado ou inválido | `401` |
+| Autenticado, mas papel sem permissão | `403` |
+
+A tabela fica em `middleware/app/auth/permissions.py`; para mudar uma permissão basta editar esse dicionário.
+
+## Observabilidade
+
+Todos os serviços escrevem logs JSON (um por requisição, com `correlation_id`) e expõem métricas Prometheus em `GET /metrics`:
+
+| Serviço | Métricas |
+| --- | --- |
+| middleware | `http://localhost:8000/metrics` |
+| scheduling, medical-record, notification | Só na rede interna do Docker (`<serviço>:<porta>/metrics`) |
+
+O `X-Correlation-ID` é gerado no gateway, repassado aos serviços e devolvido na resposta. O nível de log vem da variável `LOG_LEVEL` (padrão `INFO`).
+
+Detalhes em [`docs/observabilidade.md`](docs/observabilidade.md).
 
 ```
 docker compose up --build -d
