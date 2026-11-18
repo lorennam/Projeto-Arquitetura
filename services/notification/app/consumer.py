@@ -8,18 +8,15 @@ import pika
 EXCHANGE_NAME = "health.events"
 QUEUE_NAME = "notification.consultas"
 ROUTING_KEY = "consulta.agendada"
+RETRY_DELAY = int(os.getenv("RABBITMQ_RETRY_DELAY", "5"))
 
 
-# Cria uma conexão com o servidor RabbitMQ.
 def conectar_rabbitmq():
-
-    # Cria as credenciais de autenticação usando variáveis de ambiente.
     credentials = pika.PlainCredentials(
         os.getenv("RABBITMQ_USER", "health_user"),
         os.getenv("RABBITMQ_PASSWORD", "change-me")
     )
 
-    # Define os parâmetros necessários para estabelecer a conexão.
     parameters = pika.ConnectionParameters(
         host=os.getenv("RABBITMQ_HOST", "rabbitmq"),
         port=int(os.getenv("RABBITMQ_PORT", "5672")),
@@ -27,18 +24,20 @@ def conectar_rabbitmq():
         credentials=credentials
     )
 
-    # Tenta estabelecer a conexão até o RabbitMQ estar disponível.
     while True:
         try:
-            print("Tentando conectar ao RabbitMQ...", flush=True)
+            print("Consumidor: tentando conectar ao RabbitMQ...", flush=True)
+
             connection = pika.BlockingConnection(parameters)
-            print("Conexão com RabbitMQ estabelecida!", flush=True)
+
+            print("Consumidor: conexão estabelecida!", flush=True)
+
             return connection
 
-        except pika.exceptions.AMQPConnectionError as erro:
-            print(f"Falha na conexão com RabbitMQ: {erro}", flush=True)
-            print("Nova tentativa em 5 segundos...", flush=True)
-            time.sleep(5)
+        except (pika.exceptions.AMQPConnectionError, OSError) as erro:
+            print(f"Consumidor: falha na conexão: {erro}", flush=True)
+            print(f"Consumidor: nova tentativa em {RETRY_DELAY} segundos...", flush=True)
+            time.sleep(RETRY_DELAY)
 
 
 def configurar_fila(channel):
@@ -114,33 +113,52 @@ def callback_notificacao(channel, method, properties, body):
         )
 
 
+
 def iniciar_consumidor():
 
-    # Estabelece a conexão com o RabbitMQ.
-    connection = conectar_rabbitmq()
+    while True:
+        connection = None
 
-    try:
-        # Cria um canal de comunicação dentro da conexão.
-        channel = connection.channel()
+        try:
+            # Estabelece a conexão com o RabbitMQ.
+            connection = conectar_rabbitmq()
 
-        # Configura a exchange, a fila e o vínculo entre elas.
-        configurar_fila(channel)
+            # Cria um canal de comunicação.
+            channel = connection.channel()
 
-        # Registra o callback que será executado ao receber uma mensagem.
-        channel.basic_consume(
-            queue=QUEUE_NAME,
-            on_message_callback=callback_notificacao,
-            auto_ack=False
-        )
+            # Configura a exchange, a fila e o vínculo.
+            configurar_fila(channel)
 
-        # Inicia o consumo e mantém o serviço aguardando mensagens.
-        print("Consumidor aguardando mensagens...", flush=True)
-        channel.start_consuming()
+            # Registra o callback para processar as mensagens.
+            channel.basic_consume(
+                queue=QUEUE_NAME,
+                on_message_callback=callback_notificacao,
+                auto_ack=False
+            )
 
-    finally:
-        # Fecha a conexão quando o consumo for encerrado.
-        if connection.is_open:
-            connection.close()
+            # Inicia o consumo das mensagens.
+            print("Consumidor aguardando mensagens...", flush=True)
+            channel.start_consuming()
+
+        except (
+            pika.exceptions.AMQPConnectionError,
+            pika.exceptions.ConnectionWrongStateError,
+            pika.exceptions.ChannelWrongStateError,
+            OSError
+        ) as erro:
+
+            print(f"Consumidor: conexão perdida: {erro}", flush=True)
+            print(f"Consumidor: tentando reconectar em {RETRY_DELAY} segundos...", flush=True)
+
+            time.sleep(RETRY_DELAY)
+
+        finally:
+            if connection is not None and connection.is_open:
+                try:
+                    connection.close()
+                except (pika.exceptions.AMQPError, OSError) as erro:
+                    print(f"Consumidor: erro ao fechar conexão: {erro}",flush=True)
+
 
 
 # Executa o consumidor quando o arquivo é iniciado diretamente.
