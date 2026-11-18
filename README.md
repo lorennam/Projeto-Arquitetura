@@ -143,6 +143,17 @@ O `X-Correlation-ID` é gerado no gateway, repassado aos serviços e devolvido n
 
 Detalhes em [`docs/observabilidade.md`](docs/observabilidade.md).
 
+## Comunicação interna via gRPC
+
+O `scheduling` consulta o `medical-record` por gRPC para saber se o paciente possui prontuário (`ExisteProntuario`) ao criar uma consulta.
+
+- **Contrato:** `proto/prontuario.proto` (única fonte da verdade).
+- **Geração de código:** feita no build de cada container (`grpc_tools.protoc`), sem versionar os arquivos `*_pb2.py`.
+- **Servidor:** `medical-record`, porta `50051`, apenas na rede interna do Docker (não publicada no host).
+- **Cliente:** `scheduling`, endereço configurável por `MEDICAL_RECORD_GRPC_ADDR` (padrão `medical-record:50051`) e timeout por `GRPC_TIMEOUT_SECONDS` (padrão `2`).
+- **Rastreabilidade:** o `X-Correlation-ID` viaja como metadata gRPC (`x-correlation-id`) e aparece nos logs JSON dos dois serviços.
+- **Tolerância a falhas:** a chamada é informativa. Se o `medical-record` estiver fora do ar ou lento, o `scheduling` registra o aviso e segue com o agendamento.
+
 ```
 docker compose up --build -d
 ```
