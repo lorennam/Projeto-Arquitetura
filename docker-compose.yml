@@ -15,6 +15,9 @@ services:
       - PATIENT_PASSWORD=${PATIENT_PASSWORD}
       - DOCTOR_PASSWORD=${DOCTOR_PASSWORD}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    depends_on:
+      - jaeger
     healthcheck:
       test:
         [
