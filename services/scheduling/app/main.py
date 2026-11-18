@@ -7,6 +7,8 @@ from enums import StatusConsulta
 from erros import ErroResponse
 from repository import repositorio
 from schemas import ConsultaCreate, ConsultaResponse
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from observability import configurar_observabilidade
 
 app = FastAPI(
@@ -14,6 +16,7 @@ app = FastAPI(
     description="Serviço de gerenciamento de agendamentos médicos",
     version="0.1.0"
 )
+Instrumentator().instrument(app).expose(app)
 
 configurar_observabilidade(app, "scheduling")
 

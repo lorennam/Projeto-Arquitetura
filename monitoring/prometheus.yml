@@ -1,0 +1,24 @@
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "middleware"
+    static_configs:
+      - targets: ["middleware:8000"]
+
+  - job_name: "scheduling"
+    static_configs:
+      - targets: ["scheduling:8001"]
+
+  - job_name: "medical-record"
+    static_configs:
+      - targets: ["medical-record:8002"]
+
+  - job_name: "notification"
+    static_configs:
+      - targets: ["notification:8003"]
