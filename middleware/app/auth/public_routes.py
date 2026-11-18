@@ -5,10 +5,12 @@ PUBLIC_PATHS = {
     "/health",
     "/metrics",
     "/auth/login",
+    "/test/latency",
     # Documentação interativa do FastAPI (útil em desenvolvimento/demo).
     "/docs",
     "/redoc",
     "/openapi.json",
+    
 }
 
 

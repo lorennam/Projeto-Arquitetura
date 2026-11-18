@@ -102,6 +102,9 @@ services:
       - prometheus_data:/prometheus
     networks:
       - health-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:latest
