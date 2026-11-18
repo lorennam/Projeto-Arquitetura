@@ -2,4 +2,5 @@ fastapi
 uvicorn[standard]
 PyJWT>=2.8,<3
 httpx
+prometheus-fastapi-instrumentator
 prometheus-client

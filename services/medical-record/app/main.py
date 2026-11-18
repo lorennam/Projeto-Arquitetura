@@ -1,3 +1,7 @@
+from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
+
+
 from typing import List, Optional
 from uuid import UUID
 
@@ -14,6 +18,7 @@ app = FastAPI(
     description="Serviço de gerenciamento de prontuários médicos",
     version="0.1.0"
 )
+Instrumentator().instrument(app).expose(app)
 
 configurar_observabilidade(app, "medical-record")
 
