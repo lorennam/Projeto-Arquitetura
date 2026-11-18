@@ -19,7 +19,44 @@ fica indisponível, e justificar o modelo de consistência escolhido.
 
 ## 2. Mecanismos de resiliência do gateway
 
-_(a completar: timeout, retry com backoff, circuit breaker, fallback)_
+As chamadas do gateway aos serviços (`/api/<serviço>/...`) passam por timeout,
+retry com backoff exponencial e circuit breaker, implementados em
+`middleware/app/gateway/`.
+
+| Mecanismo | Valor padrão | Variável de ambiente |
+| --- | --- | --- |
+| Timeout total da chamada | 5 s | `GATEWAY_TIMEOUT_SECONDS` |
+| Timeout de conexão | 2 s | `GATEWAY_CONNECT_TIMEOUT_SECONDS` |
+| Retries | 3 (4 tentativas no total) | `GATEWAY_MAX_RETRIES` |
+| Base do backoff | 0,5 s (0,5 s, 1 s, 2 s) | `GATEWAY_BACKOFF_BASE_SECONDS` |
+| Falhas para abrir o breaker | 3 | `GATEWAY_CB_FAILURE_THRESHOLD` |
+| Tempo até tentar recuperar | 10 s | `GATEWAY_CB_RECOVERY_SECONDS` |
+
+### Retry com backoff
+
+Falhas de rede (`httpx.RequestError`: conexão recusada, timeout) são repetidas
+até 3 vezes, esperando `0,5 × 2^n` segundos entre as tentativas. Respostas HTTP
+do serviço (inclusive 4xx e 5xx) **não** são repetidas: são repassadas ao cliente.
+
+### Circuit breaker
+
+Há um breaker **por serviço**, então a queda de um serviço não bloqueia os outros.
+
+| Estado | Comportamento |
+| --- | --- |
+| `closed` | Requisições passam normalmente. |
+| `open` | Após 3 requisições que esgotaram os retries. O gateway responde `503` com `Retry-After: 10` **sem chamar o serviço**. |
+| `half-open` | Passados 10 s, as requisições voltam a passar. Um sucesso fecha o breaker; uma falha o reabre. |
+
+Cada requisição que esgota os retries conta como **uma** falha para o breaker.
+
+### Respostas de erro
+
+| Situação | Resposta |
+| --- | --- |
+| Serviço inexistente | `404` |
+| Breaker aberto ou serviço indisponível após retries | `503` |
+| Timeout após retries | `504` |
 
 ## 3. Consistência escolhida e justificativa
 
