@@ -59,8 +59,8 @@ services:
 
   medical-record:
     build:
-      context: ./services/medical-record
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/medical-record/Dockerfile
     image: health-medical-record
     networks:
       - health-network
