@@ -3,6 +3,7 @@ import logging
 import os
 
 import grpc
+from opentelemetry.instrumentation.grpc import aio_server_interceptor
 
 import correlation
 import prontuario_pb2
@@ -33,7 +34,8 @@ class ProntuarioService(prontuario_pb2_grpc.ProntuarioServiceServicer):
 
 
 async def iniciar_grpc() -> grpc.aio.Server:
-    server = grpc.aio.server()
+    # O interceptor extrai o traceparent da metadata e continua o mesmo trace.
+    server = grpc.aio.server(interceptors=[aio_server_interceptor()])
     prontuario_pb2_grpc.add_ProntuarioServiceServicer_to_server(
         ProntuarioService(), server
     )
