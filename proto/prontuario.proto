@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package prontuario;
+
+// Consulta interna usada pelo scheduling para validar se o paciente
+// possui prontuário antes de confirmar um agendamento.
+service ProntuarioService {
+  rpc ExisteProntuario (ProntuarioRequest) returns (ProntuarioResponse);
+}
+
+message ProntuarioRequest {
+  string paciente_id = 1;
+}
+
+message ProntuarioResponse {
+  bool existe = 1;
+}

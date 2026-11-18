@@ -8,6 +8,7 @@ from erros import ErroResponse
 from repository import repositorio
 from schemas import ConsultaCreate, ConsultaResponse
 from prometheus_fastapi_instrumentator import Instrumentator
+from grpc_client import paciente_tem_prontuario
 
 from observability import configurar_observabilidade
 
@@ -70,7 +71,10 @@ def criar_consulta(
 
     #Reutiliza o ID recebido do middleware ou gera um novo UUID
     id_correlacao = correlation_id or str(uuid4())
-
+    
+    # Chamada interna gRPC: informativa, não bloqueia o agendamento.
+    paciente_tem_prontuario(dados.paciente_id, id_correlacao)
+    
     #Publica os dados da consulta no RabbitMQ com o ID de correlaão
     publicar_consulta_agendada(
         consulta,

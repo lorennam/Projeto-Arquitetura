@@ -12,12 +12,26 @@ from erros import ErroResponse
 from repository import repositorio
 from schemas import RegistroCreate, RegistroResponse
 from observability import configurar_observabilidade
+from contextlib import asynccontextmanager
+from grpc_server import iniciar_grpc
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # O gRPC sobe junto com o FastAPI, no mesmo processo e event loop.
+    server = await iniciar_grpc()
+    try:
+        yield
+    finally:
+        await server.stop(grace=5)
+
 
 app = FastAPI(
     title="Medical Record Service",
     description="Serviço de gerenciamento de prontuários médicos",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan,
 )
+
 Instrumentator().instrument(app).expose(app)
 
 configurar_observabilidade(app, "medical-record")
