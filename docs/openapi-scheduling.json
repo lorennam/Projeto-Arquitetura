@@ -6,6 +6,23 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/metrics": {
+      "get": {
+        "summary": "Metrics",
+        "description": "Endpoint that serves Prometheus metrics.",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health Check",
@@ -22,45 +39,34 @@
         }
       }
     },
-    "/consultas": {
-      "get": {
-        "tags": [
-          "Consultas"
-        ],
-        "summary": "Lista todas as consultas",
-        "operationId": "listar_consultas_consultas_get",
-        "responses": {
-          "200": {
-            "description": "Lista de consultas (vazia se não houver nenhuma)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ConsultaResponse"
-                  },
-                  "type": "array",
-                  "title": "Response Listar Consultas Consultas Get"
-                }
-              }
-            }
-          }
-        }
-      },
+    "/v1/consultas": {
       "post": {
         "tags": [
           "Consultas"
         ],
         "summary": "Cria uma consulta",
-        "operationId": "criar_consulta_consultas_post",
+        "description": "Cria uma consulta e publcia o evento correspondente no RabbitMQ.\n\nRecebe os dados da consulta e o identificador de correlação enviado pelo middleware.\nApós verificar conflitos e salvar a consulta no repositório, publica o evento consulta.agendada.\n\nCaso não receba um correlation_id, gera um novo identificador UUID.",
+        "operationId": "criar_consulta_v1_consultas_post",
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Correlation-Id"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ConsultaCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -87,15 +93,38 @@
             "description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"
           }
         }
+      },
+      "get": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Lista todas as consultas",
+        "operationId": "listar_consultas_v1_consultas_get",
+        "responses": {
+          "200": {
+            "description": "Lista de consultas (vazia se não houver nenhuma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsultaResponse"
+                  },
+                  "title": "Response Listar Consultas V1 Consultas Get"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "/consultas/{consulta_id}": {
+    "/v1/consultas/{consulta_id}": {
       "get": {
         "tags": [
           "Consultas"
         ],
         "summary": "Consulta uma consulta pelo id",
-        "operationId": "obter_consulta_consultas__consulta_id__get",
+        "operationId": "obter_consulta_v1_consultas__consulta_id__get",
         "parameters": [
           {
             "name": "consulta_id",
@@ -135,13 +164,13 @@
         }
       }
     },
-    "/consultas/{consulta_id}/cancelamento": {
+    "/v1/consultas/{consulta_id}/cancelamento": {
       "post": {
         "tags": [
           "Consultas"
         ],
         "summary": "Cancela uma consulta",
-        "operationId": "cancelar_consulta_consultas__consulta_id__cancelamento_post",
+        "operationId": "cancelar_consulta_v1_consultas__consulta_id__cancelamento_post",
         "parameters": [
           {
             "name": "consulta_id",
@@ -177,6 +206,62 @@
           },
           "404": {
             "description": "Consulta não encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErroResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"
+          }
+        }
+      }
+    },
+    "/v2/consultas": {
+      "post": {
+        "tags": [
+          "Consultas v2"
+        ],
+        "summary": "Cria uma consulta (v2)",
+        "description": "Versão 2: o campo `data_hora` da v1 passou a se chamar `inicio`.",
+        "operationId": "criar_consulta_v2_v2_consultas_post",
+        "parameters": [
+          {
+            "name": "X-Correlation-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Correlation-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsultaCreateV2"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Consulta criada com status 'agendada'",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponseV2"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Profissional já possui consulta agendada nesse horário",
             "content": {
               "application/json": {
                 "schema": {
@@ -241,6 +326,55 @@
           "data_hora"
         ],
         "title": "ConsultaCreate"
+      },
+      "ConsultaCreateV2": {
+        "properties": {
+          "paciente_id": {
+            "type": "string",
+            "title": "Paciente Id",
+            "examples": [
+              "paciente-001"
+            ]
+          },
+          "profissional_id": {
+            "type": "string",
+            "title": "Profissional Id",
+            "examples": [
+              "medico-001"
+            ]
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio",
+            "description": "Início da consulta (deve estar no futuro). Sem fuso, assume UTC.",
+            "examples": [
+              "2030-05-20T14:30:00Z"
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo",
+            "examples": [
+              "Consulta de rotina"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "paciente_id",
+          "profissional_id",
+          "inicio"
+        ],
+        "title": "ConsultaCreateV2",
+        "description": "Payload da v2: `inicio` substitui `data_hora`."
       },
       "ConsultaResponse": {
         "properties": {
@@ -314,6 +448,79 @@
           "criado_em"
         ],
         "title": "ConsultaResponse"
+      },
+      "ConsultaResponseV2": {
+        "properties": {
+          "paciente_id": {
+            "type": "string",
+            "title": "Paciente Id",
+            "examples": [
+              "paciente-001"
+            ]
+          },
+          "profissional_id": {
+            "type": "string",
+            "title": "Profissional Id",
+            "examples": [
+              "medico-001"
+            ]
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Inicio",
+            "description": "Início da consulta (deve estar no futuro). Sem fuso, assume UTC.",
+            "examples": [
+              "2030-05-20T14:30:00Z"
+            ]
+          },
+          "motivo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivo",
+            "examples": [
+              "Consulta de rotina"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "examples": [
+              "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusConsulta",
+            "examples": [
+              "agendada"
+            ]
+          },
+          "criado_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Criado Em",
+            "examples": [
+              "2026-11-13T20:58:00Z"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "paciente_id",
+          "profissional_id",
+          "inicio",
+          "id",
+          "status",
+          "criado_em"
+        ],
+        "title": "ConsultaResponseV2"
       },
       "ErroResponse": {
         "properties": {

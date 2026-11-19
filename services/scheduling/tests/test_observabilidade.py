@@ -44,17 +44,17 @@ def _contagem(nome, **rotulos):
 # ---------- correlation_id ----------
 
 def test_gera_correlation_id_quando_header_nao_vem(client):
-    resposta = client.get("/consultas")
+    resposta = client.get("/v1/consultas")
     assert resposta.headers[correlation.HEADER]
 
 
 def test_reaproveita_correlation_id_recebido(client):
-    resposta = client.get("/consultas", headers={correlation.HEADER: "abc-123"})
+    resposta = client.get("/v1/consultas", headers={correlation.HEADER: "abc-123"})
     assert resposta.headers[correlation.HEADER] == "abc-123"
 
 
 def test_correlation_id_sai_tambem_em_erro(client):
-    resposta = client.get(f"/consultas/{CONSULTA_ID}", headers={correlation.HEADER: "abc-404"})
+    resposta = client.get(f"/v1/consultas/{CONSULTA_ID}", headers={correlation.HEADER: "abc-404"})
     assert resposta.status_code == 404
     assert resposta.headers[correlation.HEADER] == "abc-404"
 
@@ -62,18 +62,18 @@ def test_correlation_id_sai_tambem_em_erro(client):
 # ---------- logs ----------
 
 def test_log_da_requisicao_tem_os_campos_esperados(client, logs_http):
-    client.get("/consultas", headers={correlation.HEADER: "abc-123"})
+    client.get("/v1/consultas", headers={correlation.HEADER: "abc-123"})
     registro = logs_http[-1]
     assert registro.method == "GET"
-    assert registro.path == "/consultas"
+    assert registro.path == "/v1/consultas"
     assert registro.status == 200
     assert registro.duration_ms >= 0
     assert registro.correlation_id == "abc-123"
 
 
 def test_nivel_do_log_acompanha_o_status(client, logs_http):
-    client.get("/consultas")
-    client.get(f"/consultas/{CONSULTA_ID}")
+    client.get("/v1/consultas")
+    client.get(f"/v1/consultas/{CONSULTA_ID}")
     assert [r.levelno for r in logs_http] == [logging.INFO, logging.WARNING]
 
 
@@ -108,7 +108,7 @@ def test_formatter_emite_json_com_service_e_correlation_id():
 # ---------- /metrics ----------
 
 def test_metrics_responde_em_formato_prometheus(client):
-    client.get("/consultas")
+    client.get("/v1/consultas")
     resposta = client.get("/metrics")
     assert resposta.status_code == 200
     assert resposta.headers["content-type"].startswith("text/plain")
@@ -117,9 +117,9 @@ def test_metrics_responde_em_formato_prometheus(client):
 
 
 def test_metrics_conta_requisicoes_por_rota_modelo(client):
-    rotulos = dict(method="GET", route="/consultas/{consulta_id}", status="404")
+    rotulos = dict(method="GET", route="/v1/consultas/{consulta_id}", status="404")
     antes = _contagem("http_requests_total", **rotulos)
-    client.get(f"/consultas/{CONSULTA_ID}")
+    client.get(f"/v1/consultas/{CONSULTA_ID}")
     assert _contagem("http_requests_total", **rotulos) == antes + 1
     assert CONSULTA_ID not in client.get("/metrics").text
 
@@ -146,11 +146,11 @@ def test_erro_5xx_conta_em_http_errors_total(monkeypatch):
         raise RuntimeError("falha simulada")
 
     monkeypatch.setattr(repositorio, "listar", quebra)
-    rotulos = dict(method="GET", route="/consultas", status="500")
+    rotulos = dict(method="GET", route="/v1/consultas", status="500")
     antes = _contagem("http_errors_total", **rotulos)
 
     cliente = TestClient(app, raise_server_exceptions=False)
-    resposta = cliente.get("/consultas")
+    resposta = cliente.get("/v1/consultas")
 
     assert resposta.status_code == 500
     assert _contagem("http_errors_total", **rotulos) == antes + 1
@@ -158,7 +158,7 @@ def test_erro_5xx_conta_em_http_errors_total(monkeypatch):
 
 
 def test_erro_4xx_nao_conta_em_http_errors_total(client):
-    rotulos = dict(method="GET", route="/consultas/{consulta_id}", status="404")
+    rotulos = dict(method="GET", route="/v1/consultas/{consulta_id}", status="404")
     antes = _contagem("http_errors_total", **rotulos)
-    client.get(f"/consultas/{CONSULTA_ID}")
+    client.get(f"/v1/consultas/{CONSULTA_ID}")
     assert _contagem("http_errors_total", **rotulos) == antes

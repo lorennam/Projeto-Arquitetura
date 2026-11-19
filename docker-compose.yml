@@ -20,6 +20,9 @@ services:
       - MEDICAL_RECORD_URL=${MEDICAL_RECORD_URL}
       - NOTIFICATION_URL=${NOTIFICATION_URL}
       - PATIENT_EXTRA_POINT_URL=${PATIENT_EXTRA_POINT_URL}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    depends_on:
+      - jaeger
     healthcheck:
       test:
         [
@@ -35,8 +38,8 @@ services:
 
   scheduling:
     build:
-      context: ./services/scheduling
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/scheduling/Dockerfile
     image: health-scheduling
     networks:
       - health-network
@@ -46,6 +49,7 @@ services:
       - RABBITMQ_USER=${RABBITMQ_USER}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - RABBITMQ_VHOST=${RABBITMQ_VHOST}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     healthcheck:
       test:
         [
@@ -61,14 +65,18 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      jaeger:
+        condition: service_started
 
   medical-record:
     build:
-      context: ./services/medical-record
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/medical-record/Dockerfile
     image: health-medical-record
     networks:
       - health-network
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     healthcheck:
       test:
         [
@@ -84,6 +92,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      jaeger:
+        condition: service_started
 
   notification:
     build:
@@ -92,6 +102,8 @@ services:
     image: health-notification
     networks:
       - health-network
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     healthcheck:
       test:
         [
@@ -107,6 +119,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      jaeger:
+        condition: service_started
 
   notification-consumer:
     build:
@@ -201,6 +215,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "127.0.0.1:16686:16686"
+    networks:
+      - health-network
 
   prometheus:
     image: prom/prometheus:latest

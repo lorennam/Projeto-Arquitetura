@@ -2,11 +2,16 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY services/scheduling/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ .
+# Contrato gRPC compartilhado (proto/ na raiz): o código Python é gerado no build.
+COPY proto/ /tmp/proto/
+RUN python -m grpc_tools.protoc -I /tmp/proto \
+    --python_out=. --grpc_python_out=. /tmp/proto/prontuario.proto
+
+COPY services/scheduling/app/ .
 
 EXPOSE 8001
 

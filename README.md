@@ -1,5 +1,8 @@
 # Projeto-Arquitetura
 
+## Arquitetura
+
+![Diagrama de arquitetura](docs/img/arquitetura.png)
 
 ##  Ports
 
@@ -142,6 +145,104 @@ Todos os serviços escrevem logs JSON (um por requisição, com `correlation_id`
 O `X-Correlation-ID` é gerado no gateway, repassado aos serviços e devolvido na resposta. O nível de log vem da variável `LOG_LEVEL` (padrão `INFO`).
 
 Detalhes em [`docs/observabilidade.md`](docs/observabilidade.md).
+
+## Comunicação interna via gRPC
+
+O `scheduling` consulta o `medical-record` por gRPC para saber se o paciente possui prontuário (`ExisteProntuario`) ao criar uma consulta.
+
+- **Contrato:** `proto/prontuario.proto` (única fonte da verdade).
+- **Geração de código:** feita no build de cada container (`grpc_tools.protoc`), sem versionar os arquivos `*_pb2.py`.
+- **Servidor:** `medical-record`, porta `50051`, apenas na rede interna do Docker (não publicada no host).
+- **Cliente:** `scheduling`, endereço configurável por `MEDICAL_RECORD_GRPC_ADDR` (padrão `medical-record:50051`) e timeout por `GRPC_TIMEOUT_SECONDS` (padrão `2`).
+- **Rastreabilidade:** o `X-Correlation-ID` viaja como metadata gRPC (`x-correlation-id`) e aparece nos logs JSON dos dois serviços.
+- **Tolerância a falhas:** a chamada é informativa. Se o `medical-record` estiver fora do ar ou lento, o `scheduling` registra o aviso e segue com o agendamento.
+
+## Tracing distribuído (Jaeger + OpenTelemetry)
+
+Uma requisição que passa pelo gateway e chega aos serviços aparece no Jaeger como **um único trace**, com um span por serviço e por chamada interna.
+
+![Trace da criação de consulta no Jaeger](docs/img/trace-jaeger.png)
+
+*Criação de consulta: `middleware` → `scheduling` → `medical-record` (3 serviços, 13 spans).*
+
+**Acesso:** `http://localhost:16686` (publicado só em `127.0.0.1`). O Jaeger recebe os spans por OTLP/HTTP na porta `4318`, apenas na rede interna do Docker. Os dados ficam em memória e somem ao reiniciar o container.
+
+**Como funciona:**
+
+- Cada serviço tem um `tracing.py` que configura o `TracerProvider` com `service.name` próprio e exporta os spans para `OTEL_EXPORTER_OTLP_ENDPOINT` (padrão `http://jaeger:4318`).
+- **HTTP:** o gateway cria o trace, o `httpx` repassa o header W3C `traceparent` ao serviço de destino e o FastAPI do serviço continua o mesmo trace. Cada tentativa do retry do gateway vira um span de cliente separado.
+- **gRPC:** o `scheduling` injeta o `traceparent` na metadata da chamada `ExisteProntuario` e o `medical-record` extrai e continua o trace.
+- O tracing é o middleware mais externo do gateway, então respostas `401` e `403` também aparecem no trace. A ordem Correlation → JWT → RBAC não muda.
+- `/health` e `/metrics` ficam fora dos traces, para o healthcheck e o scrape do Prometheus não poluírem o Jaeger.
+- O `notification` expõe só a instrumentação HTTP. A propagação por RabbitMQ não foi implementada e fica como evolução.
+
+**Como gerar um trace de exemplo (PowerShell):**
+
+```powershell
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/login `
+  -ContentType "application/json" `
+  -Body '{"username":"medico","password":"medico123"}'
+$h = @{ Authorization = "Bearer $($login.access_token)" }
+
+# (opcional) cria um prontuário para o gRPC retornar existe=true
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/medical-record/v1/pacientes/p1/registros `
+  -Headers $h -ContentType "application/json" `
+  -Body '{"tipo":"consulta","descricao":"teste"}'
+
+# cria a consulta: gera o trace middleware -> scheduling -> medical-record
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/scheduling/v1/consultas `
+  -Headers $h -ContentType "application/json" `
+  -Body '{"paciente_id":"p1","profissional_id":"m1","data_hora":"2027-01-10T10:00:00"}'
+```
+
+No Jaeger, escolha o serviço `middleware`, clique em **Find Traces** e abra o trace `POST /api/{service}/{path}` que mostra 3 serviços. A aba **System Architecture** desenha o grafo de dependências.
+
+**Versões fixadas (lições aprendidas):**
+
+| Pacote | Versão | Motivo |
+| --- | --- | --- |
+| `fastapi` | `0.115.6` | O `opentelemetry-instrumentation-fastapi` 0.48b0 quebra com FastAPI mais novo em rotas vindas de `include_router` (`AttributeError` em `/auth/*` e `/api/*`) |
+| `setuptools` | `<81` | A instrumentação OTel ainda importa `pkg_resources`, que o `python:3.12-slim` não traz e o setuptools recente removeu |
+| `grpcio`, `grpcio-tools` | `1.62.3` | O `opentelemetry-proto` 1.27 exige `protobuf<5`, e versões mais novas do gRPC pedem `protobuf>=5` |
+| `opentelemetry-*` | `1.27.0` / `0.48b0` | Conjunto de versões testado em conjunto |
+
+## Versionamento da API
+
+As rotas de negócio são versionadas no caminho, **depois do nome do serviço**: `/api/<serviço>/<versão>/...`. O gateway repassa o caminho sem alterá-lo, então o RBAC vale igualmente para todas as versões. Rotas de infraestrutura (`/health`, `/metrics`) não são versionadas.
+
+| Serviço | Versões | Observação |
+| --- | --- | --- |
+| `scheduling` | `v1`, `v2` | A `v2` muda o payload de criação de consulta |
+| `medical-record` | `v1` | |
+
+### scheduling: v1 e v2
+
+`POST /api/scheduling/v1/consultas` e `POST /api/scheduling/v2/consultas` fazem a mesma operação (mesmas regras de conflito, evento no RabbitMQ e consulta gRPC). A única mudança é o nome do campo de data:
+
+| Versão | Campo | Resposta |
+| --- | --- | --- |
+| `v1` | `data_hora` | `data_hora` |
+| `v2` | `inicio` | `inicio` |
+
+**v1**
+
+```json
+{"paciente_id": "paciente-001", "profissional_id": "medico-001", "data_hora": "2030-05-20T14:30:00Z"}
+```
+
+**v2**
+
+```json
+{"paciente_id": "paciente-001", "profissional_id": "medico-001", "inicio": "2030-05-20T14:30:00Z"}
+```
+
+A `v1` continua funcionando; uma versão inexistente (ex.: `v3`) responde `404`. O contrato de cada versão está em `docs/openapi-scheduling.json` (tags `Consultas` para a v1 e `Consultas v2` para a v2).
+
+> Ao introduzir o `/v1`, as rotas sem versão (`/consultas`) deixaram de existir.
+
+## Teste ponta a ponta
+
+Roteiro completo (login, agendamento, fila, notificação, prontuário, 401/403 e rastreio do Correlation ID) em [`docs/roteiro-teste.md`](docs/roteiro-teste.md). Para rodar tudo de uma vez: `powershell -ExecutionPolicy Bypass -File scripts/e2e.ps1`.
 
 ```
 docker compose up --build -d
