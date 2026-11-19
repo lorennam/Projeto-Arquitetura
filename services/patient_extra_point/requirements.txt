@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg[binary]
+alembic
+email-validator
+prometheus-fastapi-instrumentator
+prometheus-client>=0.20,<1

@@ -1,7 +1,10 @@
+
 import asyncio
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, Depends, Body
+from fastapi.security import HTTPBearer
 
 from .circuit_breaker import CircuitBreaker
 from .config import (
@@ -18,17 +21,27 @@ from auth.internal_headers import build_internal_headers, strip_internal_headers
 
 router = APIRouter(prefix="/api")
 
+bearer_scheme = HTTPBearer(auto_error=False)
+
 breakers = {
     name: CircuitBreaker(CB_FAILURE_THRESHOLD, CB_RECOVERY_SECONDS)
     for name in SERVICES
 }
 
 
-@router.api_route(
-    "/{service}/{path:path}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-async def proxy(service: str, path: str, request: Request):
+@router.get("/{service}/{path:path}", operation_id="proxy_get")
+@router.post("/{service}/{path:path}", operation_id="proxy_post")
+@router.put("/{service}/{path:path}", operation_id="proxy_put")
+@router.patch("/{service}/{path:path}", operation_id="proxy_patch")
+@router.delete("/{service}/{path:path}", operation_id="proxy_delete")
+
+async def proxy(
+    service: str,
+    path: str,
+    request: Request,
+    payload: Any = Body(default=None, media_type="application/json"),
+    _credentials=Depends(bearer_scheme),
+):
     base_url = SERVICES.get(service)
     if not base_url:
         raise HTTPException(status_code=404, detail="Serviço não encontrado")
@@ -47,8 +60,6 @@ async def proxy(service: str, path: str, request: Request):
         if k.lower() not in ("host", "content-length")
     }
 
-    # Anti-spoofing: descarta X-User-* vindo do cliente e injeta a identidade
-    # validada pelo middleware de autenticação.
     headers = strip_internal_headers(headers)
     user = getattr(request.state, "user", None)
     if user:
@@ -58,6 +69,7 @@ async def proxy(service: str, path: str, request: Request):
 
     timeout = httpx.Timeout(REQUEST_TIMEOUT, connect=CONNECT_TIMEOUT)
 
+    # Mantém o corpo original enviado pelo Swagger.
     body = await request.body()
     last_error = None
 
@@ -79,8 +91,14 @@ async def proxy(service: str, path: str, request: Request):
     else:
         breaker.record_failure()
         if isinstance(last_error, httpx.TimeoutException):
-            raise HTTPException(status_code=504, detail=f"Tempo esgotado ao chamar '{service}'")
-        raise HTTPException(status_code=503, detail=f"Serviço '{service}' indisponível")
+            raise HTTPException(
+                status_code=504,
+                detail=f"Tempo esgotado ao chamar '{service}'",
+            )
+        raise HTTPException(
+            status_code=503,
+            detail=f"Serviço '{service}' indisponível",
+        )
 
     breaker.record_success()
 
