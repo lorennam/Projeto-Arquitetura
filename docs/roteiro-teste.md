@@ -17,11 +17,37 @@ Os comandos são para PowerShell, na raiz do repositório.
 
 ## 0. Pré-requisitos
 
-_(a completar)_
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+Todos os serviços devem estar `healthy` (o `notification-consumer` não tem healthcheck e só precisa estar `Up`).
+
+Limpe a fila de falhas (DLQ) para o resultado ficar limpo:
+
+```powershell
+docker compose exec rabbitmq rabbitmqctl purge_queue -p health notification.consultas.dlq
+```
+
+Senhas de teste: `paciente123`, `medico123` e `admin123` (ou as do `.env`).
 
 ## 1. Login
 
-_(a completar)_
+```powershell
+function Get-Token($u, $p, $cid) {
+  (Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/login `
+    -Headers @{ "X-Correlation-ID" = $cid } `
+    -ContentType "application/json" `
+    -Body "{`"username`":`"$u`",`"password`":`"$p`"}").access_token
+}
+
+$medico   = Get-Token "medico"   "medico123"   "demo-e2e-login"
+$paciente = Get-Token "paciente" "paciente123" "demo-e2e-login"
+$admin    = Get-Token "admin"    "admin123"    "demo-e2e-login"
+```
+
+**Esperado:** três tokens JWT, sem erro. Cole um token em jwt.io e confira `sub`, `role` e `exp` (30 min).
 
 ## 2. Fluxo completo
 
