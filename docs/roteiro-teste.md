@@ -171,6 +171,18 @@ curl.exe -i http://localhost:8000/api/scheduling/v1/consultas
 
 Para ver o mesmo fluxo como trace, abra o Jaeger em `http://localhost:16686`.
 
-## 5. Resultados esperados
+## 5. Resultados esperados (execução real)
 
-_(a completar)_
+| Passo | Resultado observado |
+| --- | --- |
+| Login (3 papéis) | Três JWT válidos |
+| Prontuário e consulta (médico) | `201` e `201` |
+| Fila com consumidor parado | `notification.consultas` = 1 |
+| Após religar o consumidor | Notificação processada; `notification.consultas` = 0 e DLQ = 0 |
+| Sem token / token inválido | `401` / `401` |
+| Paciente e admin no prontuário | `403` / `403` |
+| Paciente com `DELETE` em scheduling | `403` |
+| Médico no prontuário | `200` |
+| `demo-e2e-001` nos logs | Presente em `middleware`, `scheduling`, `medical-record` e `notification-consumer` |
+
+Execução automatizada: `scripts/e2e.ps1` (imprime OK/FALHOU por passo).

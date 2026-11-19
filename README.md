@@ -240,6 +240,10 @@ A `v1` continua funcionando; uma versão inexistente (ex.: `v3`) responde `404`.
 
 > Ao introduzir o `/v1`, as rotas sem versão (`/consultas`) deixaram de existir.
 
+## Teste ponta a ponta
+
+Roteiro completo (login, agendamento, fila, notificação, prontuário, 401/403 e rastreio do Correlation ID) em [`docs/roteiro-teste.md`](docs/roteiro-teste.md). Para rodar tudo de uma vez: `powershell -ExecutionPolicy Bypass -File scripts/e2e.ps1`.
+
 ```
 docker compose up --build -d
 ```
