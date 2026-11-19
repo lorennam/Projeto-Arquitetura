@@ -4,19 +4,39 @@ import os
 import time
 import pika
 import sqlite3
+from prometheus_client import Counter, Histogram
+from prometheus_client import start_http_server
 
 RETRY_QUEUE = "notification.consultas.retry"
 DLQ_QUEUE = "notification.consultas.dlq"
 
 DLQ_EXCHANGE = "health.dlx"
-MAX_RETRIES = int(os.getenv("RABBITMQ_MAX_RETRIES","3"))
-MESSAGE_RETRY_DELAY = int(os.getenv("RABBITMQ_MESSAGE_RETRY_DELAY","5000"))
+MAX_RETRIES = int(os.getenv("RABBITMQ_MAX_RETRIES", "3"))
+MESSAGE_RETRY_DELAY = int(os.getenv("RABBITMQ_MESSAGE_RETRY_DELAY", "5000"))
 
 # Configurações da comunicação com o RabbitMQ.
 EXCHANGE_NAME = "health.events"
 QUEUE_NAME = "notification.consultas"
 ROUTING_KEY = "consulta.agendada"
 RETRY_DELAY = int(os.getenv("RABBITMQ_RETRY_DELAY", "5"))
+
+# Métricas do consumidor RabbitMQ.
+notification_messages_processed_total = Counter(
+    "notification_messages_processed_total",
+    "Total de mensagens processadas com sucesso",
+)
+
+notification_messages_errors_total = Counter(
+    "notification_messages_errors_total",
+    "Total de falhas no processamento de mensagens",
+)
+
+notification_message_processing_duration_seconds = Histogram(
+    "notification_message_processing_duration_seconds",
+    "Duração do processamento de mensagens",
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
 
 def inicializar_banco():
     caminho = os.getenv("IDEMPOTENCY_DB_PATH", "/data/processed_messages.db")
@@ -28,8 +48,8 @@ def inicializar_banco():
     with sqlite3.connect(caminho) as conexao:
         conexao.execute("""
             CREATE TABLE IF NOT EXISTS processed_messages (
-            message_id TEXT PRIMARY KEY,
-            processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                message_id TEXT PRIMARY KEY,
+                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
@@ -41,11 +61,8 @@ def registrar_mensagem(message_id):
         cursor = conexao.execute(
             "INSERT OR IGNORE INTO processed_messages (message_id) VALUES (?)",
             (message_id,)
-            )
+        )
         return cursor.rowcount > 0
-
-
-
 
 
 def conectar_rabbitmq():
@@ -73,7 +90,10 @@ def conectar_rabbitmq():
 
         except (pika.exceptions.AMQPConnectionError, OSError) as erro:
             print(f"Consumidor: falha na conexão: {erro}", flush=True)
-            print(f"Consumidor: nova tentativa em {RETRY_DELAY} segundos...", flush=True)
+            print(
+                f"Consumidor: nova tentativa em {RETRY_DELAY} segundos...",
+                flush=True
+            )
             time.sleep(RETRY_DELAY)
 
 
@@ -114,7 +134,7 @@ def configurar_fila(channel):
     channel.queue_declare(
         queue=RETRY_QUEUE,
         durable=True,
-        arguments= {
+        arguments={
             "x-message-ttl": MESSAGE_RETRY_DELAY,
             "x-dead-letter-exchange": EXCHANGE_NAME,
             "x-dead-letter-routing-key": ROUTING_KEY
@@ -143,9 +163,11 @@ def configurar_fila(channel):
     channel.basic_qos(prefetch_count=1)
 
 
-def encaminhar_mensagem(channel, exchange, routing_key, body, properties, headers=None):
+def encaminhar_mensagem(
+    channel, exchange, routing_key, body, properties, headers=None
+):
 
-    novas_properties = pika.BasicProperties (
+    novas_properties = pika.BasicProperties(
         content_type=properties.content_type,
         delivery_mode=2,
         correlation_id=properties.correlation_id,
@@ -162,7 +184,6 @@ def encaminhar_mensagem(channel, exchange, routing_key, body, properties, header
     )
 
 
-
 def processar_notificacao(body, message_id):
 
     # Converte os bytes recebidos do RabbitMQ para um objeto Python.
@@ -175,7 +196,7 @@ def processar_notificacao(body, message_id):
     # Extrai os dados da consulta.
     consulta = mensagem["data"]
 
-    if not all(campo in consulta for campo in ("id","paciente_id","data_hora")):
+    if not all(campo in consulta for campo in ("id", "paciente_id", "data_hora")):
         raise ValueError("Dados da consulta incompletos.")
 
     if not message_id:
@@ -201,7 +222,6 @@ def processar_notificacao(body, message_id):
     return True
 
 
-
 def callback_notificacao(channel, method, properties, body):
 
     headers = properties.headers or {}
@@ -211,10 +231,17 @@ def callback_notificacao(channel, method, properties, body):
     except (TypeError, ValueError):
         tentativas = 0
 
+    inicio_processamento = time.perf_counter()
+
     try:
         processada = processar_notificacao(body, properties.message_id)
 
+        if processada:
+            notification_messages_processed_total.inc()
+
     except Exception as erro:
+
+        notification_messages_errors_total.inc()
 
         print(f"Erro ao processar notificação: {erro}", flush=True)
 
@@ -274,13 +301,20 @@ def callback_notificacao(channel, method, properties, body):
 
     else:
         if processada:
-            print("Notificação processada com sucesso!",flush=True)
+            print("Notificação processada com sucesso!", flush=True)
 
         channel.basic_ack(delivery_tag=method.delivery_tag)
+
+    finally:
+        notification_message_processing_duration_seconds.observe(
+            time.perf_counter() - inicio_processamento
+        )
 
 
 def iniciar_consumidor():
     inicializar_banco()
+    start_http_server(8005)
+
     while True:
         connection = None
 
@@ -313,7 +347,10 @@ def iniciar_consumidor():
         ) as erro:
 
             print(f"Consumidor: conexão perdida: {erro}", flush=True)
-            print(f"Consumidor: tentando reconectar em {RETRY_DELAY} segundos...", flush=True)
+            print(
+                f"Consumidor: tentando reconectar em {RETRY_DELAY} segundos...",
+                flush=True
+            )
 
             time.sleep(RETRY_DELAY)
 
@@ -322,8 +359,10 @@ def iniciar_consumidor():
                 try:
                     connection.close()
                 except (pika.exceptions.AMQPError, OSError) as erro:
-                    print(f"Consumidor: erro ao fechar conexão: {erro}",flush=True)
-
+                    print(
+                        f"Consumidor: erro ao fechar conexão: {erro}",
+                        flush=True
+                    )
 
 
 # Executa o consumidor quando o arquivo é iniciado diretamente.

@@ -17,6 +17,10 @@ PERMISSIONS = {
         "doctor": {"GET"},
         "admin": ALL_METHODS,
     },
+    "patient-extra-point": {
+        "patient": {"GET"},
+        "admin": ALL_METHODS,
+    },
 }
 
 def service_from_path(path: str):

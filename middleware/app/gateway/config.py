@@ -4,6 +4,7 @@ SERVICES = {
     "scheduling": os.getenv("SCHEDULING_URL", "http://scheduling:8001"),
     "medical-record": os.getenv("MEDICAL_RECORD_URL", "http://medical-record:8002"),
     "notification": os.getenv("NOTIFICATION_URL", "http://notification:8003"),
+    "patient-extra-point": os.getenv("PATIENT_EXTRA_POINT_URL", "http://patient-extra-point:8004"),
 }
 
 REQUEST_TIMEOUT = float(os.getenv("GATEWAY_TIMEOUT_SECONDS", "5"))

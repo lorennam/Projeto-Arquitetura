@@ -22,3 +22,11 @@ scrape_configs:
   - job_name: "notification"
     static_configs:
       - targets: ["notification:8003"]
+
+  - job_name: "patient-extra-point"
+    static_configs:
+      - targets: ["patient-extra-point:8004"]
+  
+  - job_name: "notification-consumer"
+    static_configs:
+      - targets: ["notification-consumer:8005"]

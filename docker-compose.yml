@@ -1,3 +1,4 @@
+
 services:
   middleware:
     build:
@@ -15,6 +16,10 @@ services:
       - PATIENT_PASSWORD=${PATIENT_PASSWORD}
       - DOCTOR_PASSWORD=${DOCTOR_PASSWORD}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SCHEDULING_URL=${SCHEDULING_URL}
+      - MEDICAL_RECORD_URL=${MEDICAL_RECORD_URL}
+      - NOTIFICATION_URL=${NOTIFICATION_URL}
+      - PATIENT_EXTRA_POINT_URL=${PATIENT_EXTRA_POINT_URL}
     healthcheck:
       test:
         [
@@ -123,6 +128,61 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  patient-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PATIENT_DB_USER:-patient_user}
+      POSTGRES_PASSWORD: ${PATIENT_DB_PASSWORD:-patient_dev_password}
+      POSTGRES_DB: ${PATIENT_DB_NAME:-patients}
+    volumes:
+      - patient_data:/var/lib/postgresql/data
+    networks:
+      - health-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "${PATIENT_DB_USER:-patient_user}",
+          "-d",
+          "${PATIENT_DB_NAME:-patients}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  patient-extra-point:
+    build:
+      context: ./services/patient_extra_point
+      dockerfile: Dockerfile
+    image: health-patient-extra-point
+    networks:
+      - health-network
+    environment:
+      - DATABASE_URL=postgresql+psycopg://${PATIENT_DB_USER:-patient_user}:${PATIENT_DB_PASSWORD:-patient_dev_password}@patient-db:5432/${PATIENT_DB_NAME:-patients}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      patient-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+
+
+
   rabbitmq:
     image: rabbitmq:3-management
     environment:
@@ -177,5 +237,5 @@ volumes:
   rabbitmq_data:
   prometheus_data:
   grafana_data:
-
   notification_data:
+  patient_data:
