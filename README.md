@@ -190,7 +190,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/medical-record/v1/
   -Body '{"tipo":"consulta","descricao":"teste"}'
 
 # cria a consulta: gera o trace middleware -> scheduling -> medical-record
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/scheduling/consultas `
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/scheduling/v1/consultas `
   -Headers $h -ContentType "application/json" `
   -Body '{"paciente_id":"p1","profissional_id":"m1","data_hora":"2027-01-10T10:00:00"}'
 ```
@@ -205,6 +205,40 @@ No Jaeger, escolha o serviço `middleware`, clique em **Find Traces** e abra o t
 | `setuptools` | `<81` | A instrumentação OTel ainda importa `pkg_resources`, que o `python:3.12-slim` não traz e o setuptools recente removeu |
 | `grpcio`, `grpcio-tools` | `1.62.3` | O `opentelemetry-proto` 1.27 exige `protobuf<5`, e versões mais novas do gRPC pedem `protobuf>=5` |
 | `opentelemetry-*` | `1.27.0` / `0.48b0` | Conjunto de versões testado em conjunto |
+
+## Versionamento da API
+
+As rotas de negócio são versionadas no caminho, **depois do nome do serviço**: `/api/<serviço>/<versão>/...`. O gateway repassa o caminho sem alterá-lo, então o RBAC vale igualmente para todas as versões. Rotas de infraestrutura (`/health`, `/metrics`) não são versionadas.
+
+| Serviço | Versões | Observação |
+| --- | --- | --- |
+| `scheduling` | `v1`, `v2` | A `v2` muda o payload de criação de consulta |
+| `medical-record` | `v1` | |
+
+### scheduling: v1 e v2
+
+`POST /api/scheduling/v1/consultas` e `POST /api/scheduling/v2/consultas` fazem a mesma operação (mesmas regras de conflito, evento no RabbitMQ e consulta gRPC). A única mudança é o nome do campo de data:
+
+| Versão | Campo | Resposta |
+| --- | --- | --- |
+| `v1` | `data_hora` | `data_hora` |
+| `v2` | `inicio` | `inicio` |
+
+**v1**
+
+```json
+{"paciente_id": "paciente-001", "profissional_id": "medico-001", "data_hora": "2030-05-20T14:30:00Z"}
+```
+
+**v2**
+
+```json
+{"paciente_id": "paciente-001", "profissional_id": "medico-001", "inicio": "2030-05-20T14:30:00Z"}
+```
+
+A `v1` continua funcionando; uma versão inexistente (ex.: `v3`) responde `404`. O contrato de cada versão está em `docs/openapi-scheduling.json` (tags `Consultas` para a v1 e `Consultas v2` para a v2).
+
+> Ao introduzir o `/v1`, as rotas sem versão (`/consultas`) deixaram de existir.
 
 ```
 docker compose up --build -d

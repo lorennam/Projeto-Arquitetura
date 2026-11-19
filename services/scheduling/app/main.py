@@ -158,6 +158,7 @@ def cancelar_consulta(consulta_id: UUID):
     description="Versão 2: o campo `data_hora` da v1 passou a se chamar `inicio`.",
     tags=["Consultas v2"],
     responses={
+        201: {"description": "Consulta criada com status 'agendada'"},
         409: {
             "model": ErroResponse,
             "description": "Profissional já possui consulta agendada nesse horário",
