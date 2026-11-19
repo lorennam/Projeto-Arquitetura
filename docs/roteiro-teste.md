@@ -107,7 +107,37 @@ Invoke-RestMethod -Uri http://localhost:8000/api/medical-record/v1/pacientes/dem
 
 ## 3. Acessos negados
 
-_(a completar)_
+```powershell
+function Test-Rota($nome, $token, $url, $metodo = "GET") {
+  try {
+    Invoke-RestMethod -Method $metodo -Uri $url -Headers @{ Authorization = "Bearer $token" } | Out-Null
+    Write-Host "$nome $metodo $url -> 200 OK"
+  } catch {
+    Write-Host "$nome $metodo $url -> $($_.Exception.Response.StatusCode.value__)"
+  }
+}
+
+$pront = "http://localhost:8000/api/medical-record/v1/pacientes/demo-paciente/registros"
+$agend = "http://localhost:8000/api/scheduling/v1/consultas"
+
+Test-Rota "sem-token" ""         $pront
+Test-Rota "token-invalido" "abc.def.ghi" $pront
+Test-Rota "paciente" $paciente   $pront
+Test-Rota "admin"    $admin      $pront
+Test-Rota "paciente" $paciente   "$agend/00000000-0000-0000-0000-000000000000/cancelamento" "DELETE"
+Test-Rota "medico"   $medico     $pront
+```
+
+| Chamada | Esperado |
+| --- | --- |
+| Sem token | `401` |
+| Token inválido | `401` |
+| Paciente no prontuário | `403` |
+| Admin no prontuário | `403` |
+| Paciente com `DELETE` em scheduling | `403` |
+| Médico no prontuário | `200 OK` |
+
+O `401` significa "não sei quem é você"; o `403` significa "sei quem é, mas o papel não permite".
 
 ## 4. Rastreio do Correlation ID
 
