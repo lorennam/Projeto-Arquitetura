@@ -1,7 +1,7 @@
 # Roteiro da demo ao vivo (4 a 5 min)
 
 Projeto Middleware Distribuído (Saúde), Sistemas Distribuídos, UNICAP.
-Comandos em PowerShell, na raiz do repositório. Alvo da demo: **4:45** (15 s de folga).
+Comandos em PowerShell, na raiz do repositório. Alvo da demo: **4:40** (20 s de folga).
 
 > **Verificado no código/saídas:** `X-User-*` é descartado no gateway; retry vale para qualquer método (inclusive POST); breaker conta 1 falha por requisição que esgotou os retries; `GET /api/scheduling/v1/consultas` com token de médico devolve 200; serviços no Jaeger: `middleware`, `scheduling`, `medical-record`.
 >
@@ -11,45 +11,43 @@ Comandos em PowerShell, na raiz do repositório. Alvo da demo: **4:45** (15 s de
 
 ## 1. Roteiro minutado
 
-Terminal com fonte grande. O script `scripts/demo.ps1` faz tudo abaixo com pausa a cada etapa; a coluna "Digitar" é o que ele executa (ou o que digitar à mão).
+Terminal com fonte grande. O script `scripts/demo.ps1` faz as etapas de terminal com pausa a cada uma; a coluna "Digitar" é o que ele executa (ou o que digitar à mão). Jaeger, `/docs` e Grafana são abas do navegador já abertas.
 
 | # | Tempo | Quem | Digitar / clicar | Deve aparecer | Falar (1-2 frases) |
 |---|---|---|---|---|---|
-| 1 | 0:00-0:25 (25 s) | Arthur | `docker compose up -d` e `docker compose ps` | Tudo `Up`/`healthy` (consumer só `Up`) | "Toda a stack sobe com um comando: gateway, 4 serviços de negócio (scheduling, medical-record, notification e patient-extra-point, este com Postgres), RabbitMQ e a observabilidade. O único exposto ao host é o middleware, na 8000." |
-| 2 | 0:25-1:05 (40 s) | Bento | Login (médico, paciente); `GET` no prontuário: sem token, paciente, médico | `401`, `403`, `200` | "401 é 'não sei quem é você', 403 é 'sei quem é, mas o papel não permite'. O prontuário só aceita `doctor`." |
-| 3 | 1:05-2:10 (65 s) | Lorenna (agendar/prontuário) + Lucas (fila) | Parar consumer; criar prontuário e agendar (`201`); `list_queues` (=1); religar consumer; `list_queues` (=0) | `notification.consultas` 1 e depois 0; DLQ 0 | Lorenna: "O scheduling consulta o prontuário por gRPC, com timeout de 2 s, sem bloquear o agendamento." Lucas: "Publica `consulta.agendada` no RabbitMQ; o consumidor tem retry, DLQ e idempotência por `message_id`." |
-| 4 | 2:10-2:40 (30 s) | Arthur | Jaeger (aba pronta): Service `middleware` → Find Traces → abrir o `POST /api/{service}/{path}` mais recente | Trace com 3 serviços (~13 spans) | "O mesmo `X-Correlation-ID` está nos logs de 4 origens e vira um trace no Jaeger." |
-| 5 | 2:40-4:15 (95 s) | Anna | Ver seção 2 | 504, 504, 504, depois 503 imediato com `Retry-After: 10`; depois 200 | Ver seção 2 |
-| 6 | 4:15-4:45 (30 s) | Arthur | Aba do Grafana: dashboard "Middleware Saude - Visao Geral" | Picos de 5xx e de latência durante a queda | "Prometheus coleta e o Grafana mostra o impacto da queda que acabamos de provocar." |
+| 1 | 0:00-0:20 (20 s) | Arthur | `docker compose up -d` e `docker compose ps` | Tudo `Up`/`healthy` (consumer só `Up`) | "Toda a stack sobe com um comando: gateway, 4 serviços de negócio, RabbitMQ e a observabilidade. Só o middleware é exposto ao host, na 8000." |
+| 2 | 0:20-0:55 (35 s) | Bento | Login (médico, paciente); `GET` no prontuário: sem token, paciente, médico | `401`, `403`, `200` | "401 é 'não sei quem é você', 403 é 'sei quem é, mas o papel não permite'. O prontuário só aceita `doctor`." |
+| 3 | 0:55-1:55 (60 s) | Lorenna (agendar/prontuário) + Lucas (fila) | Parar consumer; criar prontuário e agendar (`201`); `list_queues` (=1); religar consumer; `list_queues` (=0) | `notification.consultas` 1 e depois 0; DLQ 0 | Lorenna: "O scheduling consulta o prontuário por gRPC, com timeout de 2 s, sem bloquear o agendamento." Lucas: "Publica `consulta.agendada` no RabbitMQ; o consumidor tem retry, DLQ e idempotência por `message_id`." |
+| 4 | 1:55-2:20 (25 s) | **Bento** | Aba do Jaeger: Service `middleware` → Find Traces → abrir o `POST /api/{service}/{path}` mais recente | Trace com 3 serviços (~13 spans) | "O mesmo `X-Correlation-ID` aparece nos logs de 4 origens e vira um trace no Jaeger: gateway, scheduling e medical-record na mesma requisição." |
+| 5 | 2:20-2:45 (25 s) | **Arthur** | **Nova aba:** `http://localhost:8000/docs`. Fazer login (`POST /auth/login`), autorizar com o token e executar o `GET` de pacientes do `patient-extra-point` (confirmar o nome exato da rota no ensaio) | `200` com a lista de pacientes | "Este é o nosso 4º serviço: um CRUD de pacientes com Postgres, CPF único, também atrás do gateway. Mesmo JWT, mesmo RBAC, mesma observabilidade. O `/docs` mostra todas as rotas do middleware." |
+| 6 | 2:45-4:15 (90 s) | Anna | Ver seção 2 | 504, 504, 504, depois 503 imediato com `Retry-After: 10`; depois 200 | Ver seção 2 |
+| 7 | 4:15-4:40 (25 s) | Arthur | Aba do Grafana: dashboard "Middleware Saude - Visao Geral" | Picos de 5xx e de latência durante a queda | "Prometheus coleta e o Grafana mostra o impacto da queda que acabamos de provocar." |
 
-**O que foi cortado (e por quê):** demonstração da DLQ (mensagem venenosa), rotas v1/v2, queda do RabbitMQ (limitação conhecida, ver plano B/pergunta 3), `Select-String` nos logs (substituído pelo Jaeger; fica como plano B), `e2e.ps1` (17 passos, longo demais; só citar que existe) e `/test/latency` (explicar só se perguntarem).
+**O que foi cortado (e por quê):** demonstração da DLQ (mensagem venenosa), rotas v1/v2, queda do RabbitMQ (limitação conhecida, ver plano B/pergunta 3), `Select-String` nos logs (substituído pelo Jaeger; fica como plano B), `e2e.ps1` (17 passos, longo demais; só citar que existe) e `/test/latency` (explicar só se perguntarem). Para abrir espaço para a etapa 5, as etapas 1, 2, 3, 4 e 7 perderam 5 s cada e a 6 perdeu 5 s.
 
 ---
 
-## 2. Plano de derrubar o container (etapa 5)
+## 2. Plano de derrubar o container (etapa 6, Anna)
 
-**Serviço:** `scheduling`. É o que acabamos de usar, o comportamento é bem conhecido (504 → 503) e a recuperação é visível. Não derrubar RabbitMQ ao vivo.
+**Serviço:** `scheduling`. Não derrubar RabbitMQ ao vivo.
 
-**Sequência (95 s):**
+**Sequência (simplificada):**
 
-1. `docker compose stop scheduling` (5 s).
-2. Chamada 1 (`GET /api/scheduling/v1/consultas` com token de médico): **504 em ~11,6 s**.
-   - *Falar durante a espera (a demora vira conteúdo, não deixe silêncio):* "Cada tentativa tem timeout de 5 s, 2 s de conexão. O middleware refaz até 3 vezes com backoff exponencial de 0,5, 1 e 2 s, por isso ~11,6 s até desistir."
-3. Chamadas 2 e 3: mais **504** (~11,6 s cada). Total de espera: ~35 s.
-   - *Falar:* "Cada falha conta no circuit breaker deste serviço. Na terceira, o circuito abre."
-4. Chamada 4: **503 imediato** com `Retry-After: 10`.
-   - *Falar:* "Agora o gateway falha rápido: não prende thread nem espera timeout. O `Retry-After` diz ao cliente quando tentar de novo."
-5. `docker compose start scheduling` **logo depois da chamada 4** (o script não pausa aqui de propósito) e chama a cada 3 s.
-   - Primeiras tentativas: **503 imediato** (circuito ainda aberto).
-   - Passados 10 s desde que abriu: o breaker fica **half-open** e as requisições voltam a passar. Se o serviço já subiu, a resposta é **200** e o breaker fecha.
-   - Se o serviço ainda estiver subindo, a requisição falha (503 após os retries) e o breaker **reabre por mais 10 s**; é comportamento esperado, e a próxima tentativa dá 200.
-   - *Falar:* "Half-open é a janela de teste: depois de 10 s o gateway volta a deixar as chamadas passarem; um sucesso fecha o circuito, uma falha o reabre."
+1. `docker compose stop scheduling`.
+2. Chamar 3 vezes `GET /api/scheduling/v1/consultas` (token de médico). Cada uma devolve **504 em ~11,6 s**.
+   - *Falar durante a espera (uma frase só):* "Cada chamada tenta 3 vezes com backoff e desiste com 504. Cada falha conta no circuit breaker."
+3. 4ª chamada: **503 imediato** com `Retry-After: 10`.
+   - *Falar:* "Na terceira falha o circuito abriu: agora o gateway falha rápido, sem esperar timeout."
+4. `docker compose start scheduling` **logo depois do 503** e chamar a cada 3 s até dar **200**.
+   - *Falar:* "Depois de 10 s o breaker testa o serviço (half-open): um sucesso fecha o circuito."
 
-**Por que não pausar antes de religar:** se esperarmos mais de 10 s depois do 503, o breaker já está half-open e a demonstração do 503 perde o sentido. A ordem é: 503 → religar → polling.
+**Por que não pausar antes de religar:** se esperarmos mais de 10 s depois do 503, o breaker já está half-open e o 503 perde o sentido. Ordem: 503 → religar → polling.
 
-**Para encurtar** (se estourar o tempo): reduzir a conversa durante as 3 esperas de ~11,6 s. Não reduzir o número de falhas; são 3 até abrir.
+**Se o serviço ainda estiver subindo:** pode vir mais um 503 (o breaker reabre por 10 s). É esperado; a próxima tentativa dá 200.
 
-**Importante:** o `scheduling` só conta como "degradado" para os endpoints dele. Prontuário e login continuam respondendo; vale provar com uma chamada rápida ao `medical-record` durante o 503 (opcional, +5 s) para o critério "o sistema continuou respondendo".
+**Para encurtar:** cortar a fala, não as falhas (são 3 até abrir).
+
+**Opcional (+5 s):** uma chamada ao `medical-record` durante o 503 prova que o resto do sistema continua respondendo.
 
 ---
 
@@ -58,12 +56,13 @@ Terminal com fonte grande. O script `scripts/demo.ps1` faz tudo abaixo com pausa
 ### 30 min antes
 - [ ] Carregador na tomada, modo "não perturbe", fechar apps, notificações do Windows desligadas.
 - [ ] `docker compose up --build -d` (o build precisa acontecer **agora**, não na apresentação).
-- [ ] `docker compose ps`: tudo `healthy`; **confirmar que `notification` está `healthy`** (correção da rota `/health`). Consumer só precisa estar `Up`.
+- [ ] `docker compose ps`: tudo `healthy`; **confirmar que `notification` está `healthy`** (correção da rota `/health`) e que `patient-extra-point` e `patient-db` estão `healthy`. Consumer só precisa estar `Up`.
 - [ ] `docker compose exec rabbitmq rabbitmqctl purge_queue -p health notification.consultas.dlq`
 - [ ] `docker compose exec rabbitmq rabbitmqctl list_queues -p health name messages`: tudo 0.
 - [ ] Rodar `powershell -ExecutionPolicy Bypass -File scripts/e2e.ps1` uma vez: 17 passos OK.
 - [ ] Rodar `scripts/demo.ps1` inteiro uma vez (ensaio) e confirmar que o `scheduling` voltou (`docker compose ps`).
-- [ ] Abrir abas: RabbitMQ http://localhost:15672 (vhost `health`), Jaeger http://localhost:16686, Grafana http://localhost:3000 (já logado, `GRAFANA_USER`/`GRAFANA_PASSWORD` do `.env`), Prometheus http://localhost:9090.
+- [ ] Abrir abas, **nesta ordem** (a ordem das abas segue a ordem da demo): Jaeger http://localhost:16686 → **Swagger do gateway http://localhost:8000/docs** → Grafana http://localhost:3000 (já logado, `GRAFANA_USER`/`GRAFANA_PASSWORD` do `.env`). Extras de apoio: RabbitMQ http://localhost:15672 (vhost `health`), Prometheus http://localhost:9090.
+- [ ] Arthur: testar no `/docs` o login + o `GET` de pacientes uma vez antes e anotar a rota exata: ________.
 - [ ] Gerar dados para o Grafana (painéis vazios = demo ruim): `1..15 | ForEach-Object { curl.exe -s "http://localhost:8000/test/latency?delay=$($_ % 4)" | Out-Null }` e rodar o `e2e.ps1`. Abrir o dashboard e anotar o nome aqui: ________.
 - [ ] Se as senhas do `.env` forem diferentes: `$env:E2E_MEDICO_PW="..."` e `$env:E2E_PACIENTE_PW="..."` na sessão do PowerShell.
 - [ ] Prints e vídeo de reserva gravados (seção 5).
@@ -84,7 +83,7 @@ Terminal com fonte grande. O script `scripts/demo.ps1` faz tudo abaixo com pausa
 
 ## 4. Script opcional
 
-`scripts/demo.ps1` (já criado): 6 etapas, pausa com Enter entre elas, só ASCII. Não colem blocos longos no terminal; rodem o arquivo.
+`scripts/demo.ps1` (já criado): etapas de terminal com pausa por Enter, só ASCII. **Ajuste necessário:** o roteiro agora tem 7 etapas; as etapas 4 (Jaeger), 5 (`/docs`) e 7 (Grafana) são no navegador, então o script só precisa de uma pausa "Enter" no lugar de cada uma, para a equipe trocar de aba. Não colem blocos longos no terminal; rodem o arquivo.
 
 Uso: `powershell -ExecutionPolicy Bypass -File scripts/demo.ps1`
 
@@ -96,8 +95,9 @@ Uso: `powershell -ExecutionPolicy Bypass -File scripts/demo.ps1`
 |---|---|---|
 | Docker lento | `up` demora | Já estar rodando; na demo, mostrar só `docker compose up -d` (instantâneo com tudo de pé) e `ps`. Se o Docker Desktop travar: reiniciar antes, nunca na hora. |
 | Porta ocupada | `bind: address already in use` | `netstat -ano \| findstr :8000`, matar o processo; ou `docker compose down` e subir de novo. Checar no checklist de 30 min. |
-| Token expirado | `401` onde deveria ser 200 | Rodar de novo a etapa de login; o `demo.ps1` já gera token novo. |
-| Container `unhealthy` | `ps` com `unhealthy` | `docker compose restart <serviço>`; se `notification`, confirmar a rota `/health`. Não iniciar a demo com serviço doente. |
+| Token expirado | `401` onde deveria ser 200 | Rodar de novo a etapa de login; o `demo.ps1` já gera token novo. No `/docs`, refazer o Authorize. |
+| Container `unhealthy` | `ps` com `unhealthy` | `docker compose restart <serviço>`; se `notification`, confirmar a rota `/health`; se `patient-extra-point`, conferir se o `patient-db` está saudável. Não iniciar a demo com serviço doente. |
+| `/docs` falha ou pacientes dá erro | Swagger não carrega ou 5xx | Mostrar o print de reserva do `/docs` e falar do 4º serviço em 2 frases; seguir para a etapa 6. |
 | Consulta duplicada/409 | 409 no agendamento | O script usa data aleatória; reexecutar. |
 | Fila não esvazia | `notification.consultas` ≠ 0 | Aguardar mais 5 s; ver `docker compose logs notification-consumer --tail 20`. |
 | `scheduling` demora a recuperar | 503 por mais de ~25 s | Normal se uma requisição em half-open pegou o serviço ainda subindo (o breaker reabre por 10 s). Aguardar mais 1 ou 2 tentativas. Se persistir: `docker compose ps` e `docker compose logs scheduling --tail 20`. |
@@ -105,7 +105,7 @@ Uso: `powershell -ExecutionPolicy Bypass -File scripts/demo.ps1`
 | Internet | (a demo é local) | Sem impacto. Só jwt.io precisa de internet: não usem. |
 | Tudo falha | | Mostrar o **vídeo de reserva** da demo completa (gravar antes, 5 min, com cada etapa) e narrar por cima. |
 
-**Reservas:** vídeo da demo completa + prints de: `ps` saudável, 401/403/200, fila 1 → 0, trace no Jaeger, 504 → 503 com `Retry-After`, 200 após recuperação, Grafana.
+**Reservas:** vídeo da demo completa + prints de: `ps` saudável, 401/403/200, fila 1 → 0, trace no Jaeger, `/docs` com o `GET` de pacientes em 200, 504 → 503 com `Retry-After`, 200 após recuperação, Grafana.
 
 ---
 
@@ -117,11 +117,11 @@ Apresentação total: 10 a 15 min. Alvo de **13 min** (2 min de folga para o pro
 |---|---|---|
 | Contexto (domínio Saúde, problema, objetivo) | 1:30 | Lorenna |
 | Arquitetura | 3:30 | Arthur (visão geral, Docker, observabilidade, 1 min) → Anna (gateway/resiliência, 1:15) → Bento (JWT/RBAC, 45 s) → Lucas (mensageria, 30 s) |
-| Demo | 4:45 | Etapas conforme a tabela da seção 1 (Arthur no teclado) |
+| Demo | 4:40 | Etapa 1: Arthur (teclado) · 2: Bento · 3: Lorenna + Lucas · 4 (Jaeger): **Bento** · 5 (`/docs` + 4º serviço): **Arthur** · 6 (queda): Anna · 7 (Grafana): Arthur |
 | Desafios e lições | 2:30 | 30 s cada: um desafio real de cada um da própria área |
 | Perguntas | 5:00 | Quem tem a área responde; **qualquer um pode complementar** |
 
-**Regra contra "só sabe a sua parte":** cada pessoa aprende 1 pergunta de outra área (da seção 7). Sugestão: Arthur ↔ Anna (resiliência), Bento ↔ Lorenna (contratos e RBAC), Lucas ↔ Arthur (observabilidade de fila). O professor pode perguntar a qualquer um.
+**Regra contra "só sabe a sua parte":** cada pessoa aprende 1 pergunta de outra área (da seção 7). Sugestão: Arthur ↔ Anna (resiliência), Bento ↔ Lorenna (contratos e RBAC), Lucas ↔ Arthur (observabilidade de fila). Como o Bento agora fala do Jaeger, ele também precisa saber a pergunta 12 e como o trace conecta os serviços. O professor pode perguntar a qualquer um.
 
 ---
 
@@ -179,18 +179,19 @@ Cronômetro (celular) em modo volta. Fazer 3 rodadas: 1ª lendo o roteiro, 2ª s
 
 | Etapa | Tempo-alvo | Marca acumulada | Limite duro |
 |---|---|---|---|
-| 1. up/ps | 0:25 | 0:25 | 0:35 |
-| 2. 401/403/200 | 0:40 | 1:05 | 1:15 |
-| 3. fluxo completo | 1:05 | 2:10 | 2:25 |
-| 4. Jaeger | 0:30 | 2:40 | 2:55 |
-| 5. queda e recuperação | 1:35 | 4:15 | 4:30 |
-| 6. Grafana | 0:30 | 4:45 | 5:00 |
+| 1. up/ps | 0:20 | 0:20 | 0:30 |
+| 2. 401/403/200 | 0:35 | 0:55 | 1:05 |
+| 3. fluxo completo | 1:00 | 1:55 | 2:10 |
+| 4. Jaeger (Bento) | 0:25 | 2:20 | 2:35 |
+| 5. `/docs` + 4º serviço (Arthur) | 0:25 | 2:45 | 3:00 |
+| 6. queda e recuperação (Anna) | 1:30 | 4:15 | 4:30 |
+| 7. Grafana | 0:25 | 4:40 | 5:00 |
 
 **Passo a passo:**
 1. Estado inicial: `docker compose ps` saudável, DLQ zerada, consumer `Up`.
 2. Iniciar o cronômetro ao digitar o primeiro comando; anotar o tempo ao fim de cada etapa.
-3. Se uma etapa passar do limite duro, **corte** o item opcional (Grafana vira print; Jaeger vira uma frase).
+3. Se uma etapa passar do limite duro, **corte** o item opcional (Grafana vira print; Jaeger ou `/docs` viram uma frase).
 4. Após cada rodada: `docker compose ps` (confirmar `scheduling` e `notification-consumer` de volta) e purge da DLQ.
 5. Na rodada 3, o professor-simulado faz 3 perguntas aleatórias a pessoas **fora da área** delas.
-6. Meta final: 3 rodadas seguidas dentro de 4:45 ± 15 s sem erro.
+6. Meta final: 3 rodadas seguidas dentro de 4:40 ± 20 s sem erro.
 7. Última rodada completa deve ser **gravada** (vira vídeo de reserva).

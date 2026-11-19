@@ -80,13 +80,13 @@ Este documento registra onde e como o grupo usou IA/LLM no projeto. A responsabi
 
 ## Arthur (infraestrutura, Docker e observabilidade)
 
-**Ferramenta/modelo:** [CONFIRMAR]
+**Ferramenta/modelo:** ChatGPT
 
 - **Onde foi usada:** Prometheus e Grafana. Nas demais entregas (compose, healthchecks, `.env`, README).
 
 ## Lucas (mensageria)
 
-**Ferramenta/modelo:** [CONFIRMAR]
+**Ferramenta/modelo:** ChatGPT
 
 - **Onde foi usada:** produtor no `scheduling` (#12), consumidor no `notification` (#13), retry, dead-letter queue e idempotência (#14) e reconexão do RabbitMQ (#27).
 

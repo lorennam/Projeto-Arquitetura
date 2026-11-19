@@ -129,8 +129,8 @@ O grupo usou IA/LLM como apoio. A responsabilidade técnica é do grupo: tudo fo
 | --- | --- | --- | --- |
 | Bento | Claude | Divisão de tarefas e issues; login/JWT, validação no gateway e RBAC; documento de tolerância a falhas; bônus de gRPC, tracing, versionamento; roteiro e script ponta a ponta; relatório | Testou cada commit (login, 401/403, fila, logs, trace, `pytest`), corrigiu quando a execução real divergiu do previsto |
 | Anna | Claude | Gateway: roteamento, correlation ID, timeout, retry, circuit breaker e teste de falha ao vivo | Testou com `curl`: 504 em ~11,6 s, 503 imediato com breaker aberto, recuperação após 10 s |
-| Arthur | [CONFIRMAR: ferramenta] | Prometheus e Grafana (observabilidade) | Testou rodando localmente o Grafana e o Prometheus |
-| Lucas | [CONFIRMAR: ferramenta] | Mensageria: produtor (#12), consumidor (#13), retry, DLQ e idempotência (#14) e reconexão do RabbitMQ (#27) | Testou com um relatório gigante de testes |
+| Arthur | ChatGPT | Prometheus e Grafana (observabilidade) | Testou rodando localmente o Grafana e o Prometheus |
+| Lucas | ChatGPT | Mensageria: produtor (#12), consumidor (#13), retry, DLQ e idempotência (#14) e reconexão do RabbitMQ (#27) | Testou com um relatório gigante de testes |
 | Lorenna | Claude | API REST do scheduling (#9) e do medical-record (#10), com contratos OpenAPI; logs JSON e métricas nos serviços (#11) | Rodou os testes conferindo o /docs e /metrics |
 
 **Exemplos de prompts:** "dividir as tarefas entre 5 integrantes em issues e branches" (organização); "explicar por onde começar a issue de JWT e separar em commits pequenos" (segurança); "passo a passo de roteamento, retry com backoff e circuit breaker" (gateway); envio de logs, erros de Docker/Git e saídas de teste para diagnóstico.
