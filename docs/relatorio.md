@@ -58,12 +58,50 @@ Os serviços só se comunicam pela rede, nunca por import direto. Cada serviço 
 - Rotas de documentação públicas por conveniência de demo.
 
 ### 2.2 Gateway e resiliência
+
+O gateway repassa `/api/<serviço>/<versão>/...` com **timeout** de 5 s por tentativa (2 s de conexão), **retry com backoff exponencial** (3 retries; 0,5 s, 1 s e 2 s) e **circuit breaker por serviço** (abre após 3 requisições que esgotaram os retries; após 10 s entra em *half-open*; um sucesso fecha, uma falha reabre). Só falhas de rede contam; respostas 4xx/5xx do serviço são repassadas.
+
+| Situação | Resposta |
+| --- | --- |
+| Serviço parado (timeouts em todas as tentativas) | `504` após ~11,6 s |
+| Breaker aberto | `503` imediato, com `Retry-After: 10` |
+| Serviço inexistente | `404` |
+
+Medimos esses valores derrubando o `scheduling`: três chamadas com 504 e as seguintes com 503 instantâneo. O breaker por serviço evita que a queda de um componente afete os outros. **Limitação:** o retry também se aplica a `POST` sem chave de idempotência.
+
 ### 2.3 Mensageria e consistência
+
+**Consistência eventual entre serviços e forte dentro de cada serviço.** O `scheduling` grava a consulta e publica `consulta.agendada` no RabbitMQ; o `notification` consome depois. Priorizamos disponibilidade: o agendamento não depende de o `notification` estar no ar.
+
+A entrega é *at-least-once*: filas duráveis, mensagens persistentes, confirmação de publicação e `ack` manual. Falhas de processamento passam por uma fila de retry (TTL de 5 s, até 3 vezes) e depois seguem para a **DLQ**. A **idempotência** usa o `message_id` registrado em SQLite (volume persistente). Produtor e consumidor reconectam automaticamente se o broker cair.
+
+**Limitações encontradas nos testes:** com o broker fora, o produtor tenta em loop dentro da requisição, então o cliente pode receber `409` ou `504` mesmo com a consulta criada; o `message_id` é registrado antes do "envio", o que pode perder uma notificação se o consumidor cair entre os dois passos. Evolução: *transactional outbox*.
+
 ### 2.4 Serviços de negócio e contratos
+
+`scheduling` (criar, listar, consultar e cancelar consultas, com regra de conflito de horário por profissional) e `medical-record` (registros de prontuário por paciente, filtráveis por tipo). Os dados ficam em memória. Os contratos são documentados em OpenAPI (`/docs` e arquivos exportados no repositório), com modelos de erro padronizados (`404`, `409`, `422`) e testes automatizados em cada serviço.
+
 ### 2.5 Observabilidade e tracing
+
+**Logs:** JSON, um por requisição, com `correlation_id`, método, rota, status e duração. **Métricas:** `GET /metrics` em cada serviço (contagem, latência e erros 5xx por rota-modelo), coletadas pelo **Prometheus** e exibidas no **Grafana**. **Correlation ID:** gerado no gateway, repassado por HTTP e gRPC, devolvido no header e presente nos logs do gateway, do serviço e do consumidor (validado ponta a ponta).
+
+**Tracing:** OpenTelemetry com exportação OTLP/HTTP para o **Jaeger**. Uma criação de consulta aparece como **um único trace** passando por `middleware`, `scheduling` e `medical-record` (13 spans), com o header W3C `traceparent` repassado pelo `httpx` e pela metadata gRPC. O tracing é o middleware mais externo, então `401` e `403` também aparecem no trace. A propagação pelo RabbitMQ não foi implementada.
+
+![Trace da criação de consulta no Jaeger](img/trace-jaeger.png)
+
 ### 2.6 Comunicação interna via gRPC
+
+O `scheduling` consulta o `medical-record` por gRPC (`ExisteProntuario`) ao criar uma consulta. **Por que gRPC neste ponto:** é uma chamada interna, síncrona e frequente entre dois serviços que se conhecem; o contrato tipado em `proto/prontuario.proto` é a única fonte da verdade (o código é gerado no build, sem versionar os `*_pb2.py`); a serialização binária sobre HTTP/2 reduz o custo frente a JSON; e há suporte nativo a *timeout* e *metadata* (usada para o correlation ID e o `traceparent`). Mantivemos REST na borda, onde legibilidade e compatibilidade importam mais.
+
+A chamada é **informativa**: tem timeout de 2 s e, se falhar, o agendamento continua (testado com o `medical-record` parado). Como não passa pelo gateway, JWT e RBAC não se aplicam; em produção, usaríamos mTLS.
+
 ### 2.7 Versionamento de API
+
+A versão fica no caminho, **depois do serviço**: `/api/scheduling/v1/consultas` e `/api/scheduling/v2/consultas`. Assim o gateway repassa o caminho sem alteração e o RBAC (que lê apenas o serviço) vale para todas as versões. A `v2` muda um campo do payload (`data_hora` passa a se chamar `inicio`), reaproveita o mesmo fluxo da `v1` e convive com ela. O `medical-record` já usava `/v1`. Uma versão inexistente responde `404`. O contrato OpenAPI documenta as duas versões. **Custo:** as rotas sem versão deixaram de existir.
+
 ### 2.8 Infraestrutura
+
+Todo o sistema sobe com `docker compose up --build`. A configuração é externalizada em `.env` (segredos fora do Git; `.env.example` versionado), há *healthchecks* nos serviços e os serviços de negócio ficam só na rede interna do Docker (apenas o gateway é exposto). Para o gRPC, o contexto de build passou à raiz, com `.dockerignore` para não enviar o `.env` ao build. Um roteiro (`scripts/e2e.ps1`) executa o fluxo completo e valida 17 passos: login, agendamento, evento na fila, notificação consumida, prontuário, `401`/`403` e rastreio do correlation ID nos quatro containers.
 
 ## 3. Dificuldades e lições aprendidas
 
@@ -78,7 +116,3 @@ Os serviços só se comunicam pela rede, nunca por import direto. Cada serviço 
 | Código gerado do protobuf não deve ir para o Git | Gerar no build e ignorar `*_pb2*.py` |
 | Healthcheck `unhealthy` por rota `/health` perdida em um merge | O roteiro ponta a ponta achou o problema; testar após cada merge |
 | Merges e conflitos em `requirements.txt` e `docker-compose.yml` entre PRs paralelos | Branches curtas, PRs pequenos e ordem de merge combinada |
-
-## 4. Uso de IA/LLM
-
-_(a completar)_
