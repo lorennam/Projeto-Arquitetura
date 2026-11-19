@@ -330,6 +330,10 @@ Só falhas de rede são repetidas; respostas HTTP `4xx` e `5xx` do serviço são
 - **Retry e DLQ:** falhas voltam por uma fila de retry (TTL de 5 s, até 3 vezes) e depois seguem para `notification.consultas.dlq`.
 - **Idempotência:** o consumidor registra o `message_id` em SQLite (volume `notification_data`) e ignora duplicatas.
 
+### Roteiro de testes manuais
+
+Para validar a mensageria na prática (publicação, consumo, retry, DLQ, idempotência e reconexão), há um roteiro passo a passo em [`docs/relatorio_testes_rabbitmq.md`](docs/relatorio_testes_rabbitmq.md). Ele cobre as issues #12, #13, #14 e #27, com os comandos prontos para Git Bash e o resultado esperado de cada etapa.
+
 ---
 
 ## Observabilidade
@@ -433,6 +437,7 @@ A `v1` continua funcionando, e uma versão inexistente (por exemplo `v3`) respon
 - [`docs/roteiro-demo.md`](docs/roteiro-demo.md): roteiro da demo ao vivo
 - [`docs/roteiro-teste.md`](docs/roteiro-teste.md): roteiro de teste ponta a ponta
 - [`docs/uso-ia.md`](docs/uso-ia.md): registro do uso de IA/LLM
+- [`docs/relatorio_testes_rabbitmq.md`](docs/relatorio_testes_rabbitmq.md): roteiro de testes manuais do RabbitMQ (produtor, consumidor, retry, DLQ, idempotência e reconexão)
 
 ## Limitações conhecidas
 
