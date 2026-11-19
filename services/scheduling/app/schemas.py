@@ -27,8 +27,34 @@ class ConsultaCreate(BaseModel):
             raise ValueError("data_hora deve estar no futuro")
         return valor
 
-
 class ConsultaResponse(ConsultaCreate):
+    id: UUID = Field(..., examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"])
+    status: StatusConsulta = Field(..., examples=["agendada"])
+    criado_em: datetime = Field(..., examples=["2026-11-13T20:58:00Z"])
+    
+class ConsultaCreateV2(BaseModel):
+    """Payload da v2: `inicio` substitui `data_hora`."""
+
+    paciente_id: str = Field(..., examples=["paciente-001"])
+    profissional_id: str = Field(..., examples=["medico-001"])
+    inicio: datetime = Field(
+        ...,
+        description="Início da consulta (deve estar no futuro). Sem fuso, assume UTC.",
+        examples=["2030-05-20T14:30:00Z"],
+    )
+    motivo: Optional[str] = Field(None, examples=["Consulta de rotina"])
+
+    @field_validator("inicio")
+    @classmethod
+    def inicio_no_futuro(cls, valor: datetime) -> datetime:
+        if valor.tzinfo is None:
+            valor = valor.replace(tzinfo=timezone.utc)
+        if valor <= datetime.now(timezone.utc):
+            raise ValueError("inicio deve estar no futuro")
+        return valor
+
+
+class ConsultaResponseV2(ConsultaCreateV2):
     id: UUID = Field(..., examples=["3fa85f64-5717-4562-b3fc-2c963f66afa6"])
     status: StatusConsulta = Field(..., examples=["agendada"])
     criado_em: datetime = Field(..., examples=["2026-11-13T20:58:00Z"])
