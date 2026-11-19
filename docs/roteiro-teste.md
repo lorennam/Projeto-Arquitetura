@@ -141,7 +141,28 @@ O `401` significa "não sei quem é você"; o `403` significa "sei quem é, mas 
 
 ## 4. Rastreio do Correlation ID
 
-_(a completar)_
+Todos os logs da requisição `demo-e2e-001` (seção 2):
+
+```powershell
+docker compose logs middleware, scheduling, medical-record, notification-consumer 2>&1 | Select-String "demo-e2e-001"
+```
+
+**Esperado:** linhas de pelo menos quatro origens com o mesmo ID:
+
+| Origem | O que aparece |
+| --- | --- |
+| `middleware` | Requisição concluída (JSON) e a chamada repassada ao serviço |
+| `scheduling` | Requisição concluída (JSON) e a chamada gRPC ao `medical-record` |
+| `medical-record` | `chamada gRPC concluída` (JSON) |
+| `notification-consumer` | `Notificação de consulta agendada: ... correlation_id=demo-e2e-001` (texto) |
+
+O ID também volta no header `X-Correlation-ID` da resposta, inclusive nos `401` e `403`:
+
+```powershell
+curl.exe -i http://localhost:8000/api/scheduling/v1/consultas
+```
+
+Para ver o mesmo fluxo como trace, abra o Jaeger em `http://localhost:16686`.
 
 ## 5. Resultados esperados
 
