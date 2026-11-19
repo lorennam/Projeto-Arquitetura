@@ -13,3 +13,10 @@ app = FastAPI(
 Instrumentator().instrument(app).expose(app)
 configurar_observabilidade(app, "notification")
 configurar_tracing(app, "notification")
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy",
+        "service": "notification"
+    }
