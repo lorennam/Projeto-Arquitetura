@@ -1,5 +1,8 @@
 # Projeto-Arquitetura
 
+## Arquitetura
+
+![Diagrama de arquitetura](docs/img/arquitetura.png)
 
 ##  Ports
 
