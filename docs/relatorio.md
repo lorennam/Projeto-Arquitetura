@@ -4,7 +4,24 @@ Equipe: Arthur, Bento, Anna, Lucas e Lorenna.
 
 ## 1. Descrição da arquitetura
 
-_(a completar)_
+O sistema é um middleware distribuído para o domínio de saúde, em Python, executado com `docker compose`. O **gateway** (`middleware`) é implementado por nós, sem middleware pronto, e é o único componente exposto ao host.
+
+![Diagrama de arquitetura](img/arquitetura.png)
+
+| Componente | Papel |
+| --- | --- |
+| `middleware` (8000) | Gateway: roteamento, JWT, RBAC, correlation ID, timeout, retry, circuit breaker |
+| `scheduling` (8001) | Agendamento de consultas; produtor de eventos; cliente gRPC |
+| `medical-record` (8002) | Prontuário; servidor gRPC |
+| `notification` (8003) | API de notificações e consumidor de eventos |
+| `rabbitmq` | Broker de mensagens |
+| `jaeger`, `prometheus`, `grafana` | Tracing, métricas e painéis |
+
+**Fluxo síncrono:** cliente → gateway (valida JWT e papel) → serviço (REST).
+**Fluxo assíncrono:** `scheduling` publica `consulta.agendada` → RabbitMQ → `notification` consome.
+**Chamada interna:** `scheduling` → `medical-record` por gRPC, para consultar se o paciente tem prontuário.
+
+Os serviços só se comunicam pela rede, nunca por import direto. Cada serviço tem seu próprio repositório de dados em memória.
 
 ## 2. Decisões técnicas e justificativas
 
