@@ -144,19 +144,26 @@ O `401` significa "não sei quem é você"; o `403` significa "sei quem é, mas 
 Todos os logs da requisição `demo-e2e-001` (seção 2):
 
 ```powershell
-docker compose logs middleware, scheduling, medical-record, notification-consumer 2>&1 | Select-String "demo-e2e-001"
+docker compose logs middleware scheduling medical-record notification-consumer 2>&1 | Select-String "demo-e2e-001"
 ```
 
-**Esperado:** linhas de pelo menos quatro origens com o mesmo ID:
+**Esperado:** o mesmo ID em quatro origens:
 
 | Origem | O que aparece |
 | --- | --- |
-| `middleware` | Requisição concluída (JSON) e a chamada repassada ao serviço |
-| `scheduling` | Requisição concluída (JSON) e a chamada gRPC ao `medical-record` |
-| `medical-record` | `chamada gRPC concluída` (JSON) |
+| `middleware` | Chamada repassada ao serviço e "requisição concluída" (JSON) |
+| `scheduling` | Chamada gRPC ao `medical-record`, publicação no RabbitMQ e "requisição concluída" |
+| `medical-record` | "requisição concluída" e "chamada gRPC concluída" (JSON) |
 | `notification-consumer` | `Notificação de consulta agendada: ... correlation_id=demo-e2e-001` (texto) |
 
-O ID também volta no header `X-Correlation-ID` da resposta, inclusive nos `401` e `403`:
+O `scheduling` gera muitas linhas técnicas do cliente RabbitMQ. Para uma saída limpa na demo:
+
+```powershell
+docker compose logs middleware scheduling medical-record notification-consumer 2>&1 |
+  Select-String "demo-e2e-001" | Select-String -NotMatch "pika|Socket|Closing|AMQP|transport|channel|Stack"
+```
+
+O ID também volta no header `X-Correlation-ID` da resposta, inclusive em `401` e `403`:
 
 ```powershell
 curl.exe -i http://localhost:8000/api/scheduling/v1/consultas
