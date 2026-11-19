@@ -6,7 +6,12 @@ from producer import publicar_consulta_agendada
 from enums import StatusConsulta
 from erros import ErroResponse
 from repository import repositorio
-from schemas import ConsultaCreate, ConsultaResponse
+from schemas import (
+    ConsultaCreate,
+    ConsultaCreateV2,
+    ConsultaResponse,
+    ConsultaResponseV2,
+)
 from prometheus_fastapi_instrumentator import Instrumentator
 from grpc_client import paciente_tem_prontuario
 
@@ -28,6 +33,8 @@ RESP_404 = {404: {"model": ErroResponse, "description": "Consulta não encontrad
 # Rotas de negócio sob /v1. O /health e o /metrics ficam fora do prefixo
 # porque são rotas de infraestrutura, não parte do contrato versionado.
 v1 = APIRouter(prefix="/v1")
+# v2: mesma operação, payload com `inicio` no lugar de `data_hora`.
+v2 = APIRouter(prefix="/v2")
 
 @app.get("/health")
 def health_check():
@@ -143,4 +150,43 @@ def cancelar_consulta(consulta_id: UUID):
         )
     return repositorio.cancelar(consulta_id)
 
+@v2.post(
+    "/consultas",
+    response_model=ConsultaResponseV2,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cria uma consulta (v2)",
+    description="Versão 2: o campo `data_hora` da v1 passou a se chamar `inicio`.",
+    tags=["Consultas v2"],
+    responses={
+        409: {
+            "model": ErroResponse,
+            "description": "Profissional já possui consulta agendada nesse horário",
+        },
+        **RESP_422,
+    },
+)
+def criar_consulta_v2(
+    dados: ConsultaCreateV2,
+    correlation_id: str = Header(default=None, alias="X-Correlation-ID"),
+):
+    # Reaproveita o fluxo da v1 (conflito, gRPC e evento no RabbitMQ).
+    dados_v1 = ConsultaCreate(
+        paciente_id=dados.paciente_id,
+        profissional_id=dados.profissional_id,
+        data_hora=dados.inicio,
+        motivo=dados.motivo,
+    )
+    consulta = criar_consulta(dados_v1, correlation_id)
+    return ConsultaResponseV2(
+        id=consulta.id,
+        status=consulta.status,
+        criado_em=consulta.criado_em,
+        paciente_id=consulta.paciente_id,
+        profissional_id=consulta.profissional_id,
+        inicio=consulta.data_hora,
+        motivo=consulta.motivo,
+    )
+
+
 app.include_router(v1)
+app.include_router(v2)
