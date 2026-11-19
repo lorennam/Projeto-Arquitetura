@@ -67,7 +67,17 @@ Os serviços só se comunicam pela rede, nunca por import direto. Cada serviço 
 
 ## 3. Dificuldades e lições aprendidas
 
-_(a completar)_
+| Dificuldade | Lição |
+| --- | --- |
+| O proxy copiava todos os headers do cliente, abrindo espaço para forjar `X-User-Role` | Descartar o que vem de fora antes de injetar identidade |
+| A ordem dos middlewares do Starlette (o último adicionado é o mais externo) determinava se `401` e `403` saíam com correlation ID | Documentar a ordem e testar com `curl -i` |
+| O consumidor e o produtor do RabbitMQ em loop de reconexão: o produtor bloqueia a requisição quando o broker cai (cliente recebe `409` ou `504` com a consulta criada) | Testar cada queda; o próximo passo seria *transactional outbox* |
+| O gateway repete `POST` sem idempotência | Idempotência precisa ser pensada junto com o retry |
+| Conflitos de versões no tracing (`fastapi 0.115.6`, `setuptools<81`, `grpcio 1.62.3` por causa do `protobuf<5`) | Fixar versões testadas em conjunto |
+| O contexto de build do Docker não enxergava o `proto/` na raiz | Mover o contexto para a raiz e usar `.dockerignore` para não copiar `.env` |
+| Código gerado do protobuf não deve ir para o Git | Gerar no build e ignorar `*_pb2*.py` |
+| Healthcheck `unhealthy` por rota `/health` perdida em um merge | O roteiro ponta a ponta achou o problema; testar após cada merge |
+| Merges e conflitos em `requirements.txt` e `docker-compose.yml` entre PRs paralelos | Branches curtas, PRs pequenos e ordem de merge combinada |
 
 ## 4. Uso de IA/LLM
 
