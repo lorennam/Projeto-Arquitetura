@@ -131,6 +131,14 @@ Mitigação futura: múltiplas réplicas atrás de um balanceador.
 | Produtor (`scheduling`) | Tenta reconectar a cada 5 s, **indefinidamente, dentro da requisição HTTP** |
 | Dados | Filas duráveis, mensagens persistentes e volume `rabbitmq_data`: o que já estava na fila sobrevive a uma reinicialização do broker |
 
+### 4.6 patient-extra-point
+
+| Aspecto | Comportamento |
+| --- | --- |
+| Chamadas pelo gateway | Mesmo comportamento dos demais serviços: breaker próprio, `504` e depois `503` com `Retry-After` quando o container cai (pelo código do gateway; **[testar]**) |
+| Banco (`patient-db`) indisponível | O `/health` do serviço responde `503` (conexão com o banco falha). **[testar o comportamento das rotas de negócio]** |
+| Inicialização | O compose só sobe o serviço depois que o `patient-db` está saudável (`depends_on` com `service_healthy`) |
+
 **Criação de consulta com o broker fora (testado):**
 
 1. O `scheduling` grava a consulta em memória e tenta publicar o evento.

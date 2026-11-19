@@ -16,6 +16,7 @@ O sistema é um middleware distribuído para o domínio de saúde, em Python, ex
 | `notification` (8003) | API de notificações e consumidor de eventos |
 | `rabbitmq` | Broker de mensagens |
 | `jaeger`, `prometheus`, `grafana` | Tracing, métricas e painéis |
+| `patient-extra-point` (8004) | Cadastro de pacientes (CRUD); persistência em PostgreSQL (`patient-db`) |
 
 **Fluxo síncrono:** cliente → gateway (valida JWT e papel) → serviço (REST).
 **Fluxo assíncrono:** `scheduling` publica `consulta.agendada` → RabbitMQ → `notification` consome.
@@ -38,6 +39,7 @@ Os serviços só se comunicam pela rede, nunca por import direto. Cada serviço 
 | `scheduling` | GET, POST | todos | todos |
 | `medical-record` | negado | todos | negado |
 | `notification` | GET | GET | todos |
+| `patient-extra-point` | GET | negado | todos |
 
 **Identidade para os serviços.** Após validar o token, o gateway repassa `X-User-Id` e `X-User-Role`. Como o proxy copia os headers do cliente, **todo `X-User-*` vindo de fora é descartado antes** de injetar os valores do token, o que impede a falsificação de identidade.
 
@@ -80,6 +82,8 @@ A entrega é *at-least-once*: filas duráveis, mensagens persistentes, confirma�
 ### 2.4 Serviços de negócio e contratos
 
 `scheduling` (criar, listar, consultar e cancelar consultas, com regra de conflito de horário por profissional) e `medical-record` (registros de prontuário por paciente, filtráveis por tipo). Os dados ficam em memória. Os contratos são documentados em OpenAPI (`/docs` e arquivos exportados no repositório), com modelos de erro padronizados (`404`, `409`, `422`) e testes automatizados em cada serviço.
+
+O `patient-extra-point` mantém o cadastro de pacientes (nome, CPF único, data de nascimento e contato) com CRUD sob `/v1/pacientes`. É o único serviço com banco relacional (PostgreSQL, via SQLAlchemy), o que mostra o middleware roteando para serviços com tecnologias de persistência diferentes. O CPF é normalizado e único (`409` em duplicidade), e o `/health` verifica a conexão com o banco. Participa da observabilidade (logs JSON com correlation ID e `/metrics`), mas ainda não exporta traces para o Jaeger. Como os demais, é alcançável apenas pelo gateway, que aplica JWT, RBAC, timeout, retry e circuit breaker. **Limitação:** a regra "paciente vê só o próprio cadastro" não foi implementada, então um `patient` autenticado lista todos os cadastros.
 
 ### 2.5 Observabilidade e tracing
 
