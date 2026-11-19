@@ -1,7 +1,7 @@
 from typing import List
 from uuid import UUID, uuid4
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import APIRouter, FastAPI, Header, HTTPException, status
 from producer import publicar_consulta_agendada
 from enums import StatusConsulta
 from erros import ErroResponse
@@ -25,7 +25,9 @@ configurar_tracing(app, "scheduling")
 
 RESP_422 = {422: {"description": "Dados inválidos (ex.: id malformado ou data_hora no passado)"}}
 RESP_404 = {404: {"model": ErroResponse, "description": "Consulta não encontrada"}}
-
+# Rotas de negócio sob /v1. O /health e o /metrics ficam fora do prefixo
+# porque são rotas de infraestrutura, não parte do contrato versionado.
+v1 = APIRouter(prefix="/v1")
 
 @app.get("/health")
 def health_check():
@@ -35,7 +37,7 @@ def health_check():
     }
 
 
-@app.post(
+@v1.post(
     "/consultas",
     response_model=ConsultaResponse,
     status_code=status.HTTP_201_CREATED,
@@ -87,7 +89,7 @@ def criar_consulta(
     
     return consulta
 
-@app.get(
+@v1.get(
     "/consultas",
     response_model=List[ConsultaResponse],
     summary="Lista todas as consultas",
@@ -98,7 +100,7 @@ def listar_consultas():
     return repositorio.listar()
 
 
-@app.get(
+@v1.get(
     "/consultas/{consulta_id}",
     response_model=ConsultaResponse,
     summary="Consulta uma consulta pelo id",
@@ -115,7 +117,7 @@ def obter_consulta(consulta_id: UUID):
     return consulta
 
 
-@app.post(
+@v1.post(
     "/consultas/{consulta_id}/cancelamento",
     response_model=ConsultaResponse,
     summary="Cancela uma consulta",
@@ -140,3 +142,5 @@ def cancelar_consulta(consulta_id: UUID):
             detail="Consulta já está cancelada",
         )
     return repositorio.cancelar(consulta_id)
+
+app.include_router(v1)

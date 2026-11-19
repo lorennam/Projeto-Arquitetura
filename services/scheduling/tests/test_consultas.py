@@ -18,7 +18,7 @@ def payload(**alteracoes):
 
 
 def cria(client, **alteracoes):
-    return client.post("/consultas", json=payload(**alteracoes))
+    return client.post("/v1/consultas", json=payload(**alteracoes))
 
 
 # ---------- criação ----------
@@ -39,7 +39,7 @@ def test_criar_sem_campo_obrigatorio_retorna_422(client):
     dados = payload()
     del dados["paciente_id"]
 
-    resposta = client.post("/consultas", json=dados)
+    resposta = client.post("/v1/consultas", json=dados)
 
     assert resposta.status_code == 422
 
@@ -54,7 +54,7 @@ def test_motivo_e_opcional(client):
     dados = payload()
     del dados["motivo"]
 
-    resposta = client.post("/consultas", json=dados)
+    resposta = client.post("/v1/consultas", json=dados)
 
     assert resposta.status_code == 201
     assert resposta.json()["motivo"] is None
@@ -83,7 +83,7 @@ def test_profissionais_diferentes_no_mesmo_horario_sao_permitidos(client):
 def test_horario_liberado_apos_cancelamento(client):
     horario = horario_futuro().isoformat()
     consulta = cria(client, data_hora=horario).json()
-    client.post(f"/consultas/{consulta['id']}/cancelamento")
+    client.post(f"/v1/consultas/{consulta['id']}/cancelamento")
 
     resposta = cria(client, data_hora=horario)
 
@@ -95,27 +95,27 @@ def test_horario_liberado_apos_cancelamento(client):
 def test_consultar_por_id_retorna_a_consulta(client):
     criada = cria(client).json()
 
-    resposta = client.get(f"/consultas/{criada['id']}")
+    resposta = client.get(f"/v1/consultas/{criada['id']}")
 
     assert resposta.status_code == 200
     assert resposta.json()["id"] == criada["id"]
 
 
 def test_consultar_id_inexistente_retorna_404(client):
-    resposta = client.get(f"/consultas/{uuid4()}")
+    resposta = client.get(f"/v1/consultas/{uuid4()}")
 
     assert resposta.status_code == 404
     assert resposta.json()["detail"] == "Consulta não encontrada"
 
 
 def test_consultar_id_malformado_retorna_422(client):
-    resposta = client.get("/consultas/nao-e-um-uuid")
+    resposta = client.get("/v1/consultas/nao-e-um-uuid")
 
     assert resposta.status_code == 422
 
 
 def test_listar_sem_consultas_retorna_lista_vazia(client):
-    resposta = client.get("/consultas")
+    resposta = client.get("/v1/consultas")
 
     assert resposta.status_code == 200
     assert resposta.json() == []
@@ -125,7 +125,7 @@ def test_listar_retorna_todas_as_consultas(client):
     cria(client, data_hora=horario_futuro(1).isoformat())
     cria(client, data_hora=horario_futuro(2).isoformat())
 
-    resposta = client.get("/consultas")
+    resposta = client.get("/v1/consultas")
 
     assert resposta.status_code == 200
     assert len(resposta.json()) == 2
@@ -136,24 +136,24 @@ def test_listar_retorna_todas_as_consultas(client):
 def test_cancelar_consulta_muda_status_para_cancelada(client):
     criada = cria(client).json()
 
-    resposta = client.post(f"/consultas/{criada['id']}/cancelamento")
+    resposta = client.post(f"/v1/consultas/{criada['id']}/cancelamento")
 
     assert resposta.status_code == 200
     assert resposta.json()["status"] == "cancelada"
-    assert client.get(f"/consultas/{criada['id']}").json()["status"] == "cancelada"
+    assert client.get(f"/v1/consultas/{criada['id']}").json()["status"] == "cancelada"
 
 
 def test_cancelar_consulta_inexistente_retorna_404(client):
-    resposta = client.post(f"/consultas/{uuid4()}/cancelamento")
+    resposta = client.post(f"/v1/consultas/{uuid4()}/cancelamento")
 
     assert resposta.status_code == 404
 
 
 def test_cancelar_duas_vezes_retorna_409(client):
     criada = cria(client).json()
-    client.post(f"/consultas/{criada['id']}/cancelamento")
+    client.post(f"/v1/consultas/{criada['id']}/cancelamento")
 
-    resposta = client.post(f"/consultas/{criada['id']}/cancelamento")
+    resposta = client.post(f"/v1/consultas/{criada['id']}/cancelamento")
 
     assert resposta.status_code == 409
 
